@@ -45,11 +45,13 @@ from lib.toolpath_def import (
 )
 from lib.ui_helpers import read_dropdown, select_dropdown
 
+# ConstructionAxes is not a valid SelectionCommandInput filter (Fusion API
+# Selection Filters list). Construction lines cover the selectable case;
+# reference_axis_direction still accepts ConstructionAxis if provided.
 _REFERENCE_AXIS_FILTERS = (
     'LinearEdges',
     'SketchLines',
     'ConstructionLines',
-    'ConstructionAxes',
 )
 
 _ANCHOR_POINT_FILTERS = (
@@ -196,10 +198,10 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
     axis_sel = parent_inputs.addSelectionInput(
         ids.REFERENCE_AXIS,
         'Feed axis',
-        'Select a linear edge, sketch line, or construction line/axis for slot direction',
+        'Select a linear edge, sketch line, or construction line for slot direction',
     )
     axis_sel.tooltip = (
-        'Linear edge, sketch line, or construction line/axis that sets the machining '
+        'Linear edge, sketch line, or construction line that sets the machining '
         'direction along the connector. Use Flip feed to reverse it.'
     )
     for filter_name in _REFERENCE_AXIS_FILTERS:
