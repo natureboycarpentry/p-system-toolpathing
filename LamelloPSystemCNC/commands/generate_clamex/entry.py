@@ -289,10 +289,11 @@ def _draw_toolpath_preview(inputs, state):
     cam = adsk.cam.CAM.cast(app.activeProduct)
     values = read_preview_values(inputs, state)
     if not values:
+        clear_toolpath_preview(app)
         return
     drawn = draw_toolpath_preview(app, values, cam)
     if drawn:
-        app.log(f'Clamex preview: drew {drawn} preview sketch(es)')
+        app.log(f'Clamex preview: drew {drawn} preview item(s)')
     viewport = app.activeViewport
     if viewport:
         viewport.refresh()

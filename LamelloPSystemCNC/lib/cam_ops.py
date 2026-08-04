@@ -322,16 +322,12 @@ def tool_description(tool):
     return 'Tool'
 
 
-def tool_flute_length_mm(tool):
-    """Return tool flute length in millimetres, or None if unavailable.
-
-    Fusion stores length tool parameters in database centimetres.
-    For a side/slot cutter the flute length is the cutting disc thickness.
-    """
+def _tool_length_param_mm(tool, param_name):
+    """Read a length-valued tool parameter as millimetres (Fusion stores cm)."""
     if not tool:
         return None
     try:
-        param = tool.parameters.itemByName('tool_fluteLength')
+        param = tool.parameters.itemByName(param_name)
     except Exception:
         param = None
     if not param:
@@ -344,8 +340,21 @@ def tool_flute_length_mm(tool):
             raw = float(param.value)
         except Exception:
             return None
-    # Length parameters are in database centimetres.
     return raw * 10.0
+
+
+def tool_flute_length_mm(tool):
+    """Return tool flute length in millimetres, or None if unavailable.
+
+    Fusion stores length tool parameters in database centimetres.
+    For a side/slot cutter the flute length is the cutting disc thickness.
+    """
+    return _tool_length_param_mm(tool, 'tool_fluteLength')
+
+
+def tool_diameter_mm(tool):
+    """Return tool diameter in millimetres, or None if unavailable."""
+    return _tool_length_param_mm(tool, 'tool_diameter')
 
 
 def list_document_tools(cam):

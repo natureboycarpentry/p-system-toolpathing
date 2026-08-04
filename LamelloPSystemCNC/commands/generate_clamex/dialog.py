@@ -458,6 +458,27 @@ def read_preview_values(inputs, dialog_state):
             inputs,
             dialog_state,
         )
+
+    # Selected CAM tools for tool-body cut preview (diameter / flute length).
+    cam = adsk.cam.CAM.cast(adsk.core.Application.get().activeProduct)
+    controller = dialog_state.tool_controller if dialog_state else None
+    if cam and controller:
+        side_desc = controller.selected_description(inputs, SECTION_SIDE)
+        flat_desc = controller.selected_description(inputs, SECTION_FLAT)
+        drill_desc = controller.selected_description(inputs, SECTION_DRILL)
+        values['side_tool'] = (
+            find_tool_by_description(cam, side_desc) if side_desc else None
+        )
+        values['flat_tool'] = (
+            find_tool_by_description(cam, flat_desc) if flat_desc else None
+        )
+        values['drill_tool'] = (
+            find_tool_by_description(cam, drill_desc) if drill_desc else None
+        )
+    else:
+        values['side_tool'] = None
+        values['flat_tool'] = None
+        values['drill_tool'] = None
     return values
 
 
@@ -552,6 +573,12 @@ def handle_input_changed(changed_input, inputs, dialog_state, command):
             controller.handle_input_changed(changed_input, inputs, cam)
         if input_id == controller.dropdown_id(SECTION_SIDE):
             update_tool_thickness_offset_display(inputs, dialog_state)
+            preview_requested = True
+        elif input_id in (
+            controller.dropdown_id(SECTION_FLAT),
+            controller.dropdown_id(SECTION_DRILL),
+        ):
+            # Tool diameter/flute drives cut-preview solids.
             preview_requested = True
     elif input_id == INPUT_SETUP:
         # Setup WCS drives the preview depth axis.

@@ -1,4 +1,4 @@
-"""Live command preview using temporary 3D sketches (visible in Manufacture)."""
+"""Live command preview: tool-body Combine Cut with sketch fallback."""
 
 import adsk.core
 import adsk.fusion
@@ -14,6 +14,7 @@ from lib.path_geometry import (
     get_or_create_clamex_component,
 )
 from lib.placement_sets import MODE_FLAT, MODE_SIDE
+from lib.preview_cut import draw_cut_preview
 from lib.toolpath_def import SLOT_LENGTH_MM, cross_offset_mm, feed_point_chain, flat_point_chain
 from lib.transform import (
     drill_hole_world_point,
@@ -117,7 +118,12 @@ def clear_toolpath_preview(app):
 
 
 def draw_toolpath_preview(app, values, cam):
-    """Draw transient preview sketches for the active tab's placement sets."""
+    """
+    Preview placements for the active milling tab.
+
+    Prefers forum-style tool-body Combine Cut into setup stock. Falls back to
+    centerline 3D sketches when cut preview cannot run (missing tools/axes/stock).
+    """
     placement_sets = values.get('placement_sets') if values else None
     if not placement_sets:
         return 0
@@ -136,6 +142,24 @@ def draw_toolpath_preview(app, values, cam):
     design = adsk.fusion.Design.cast(
         app.activeDocument.products.itemByProductType('DesignProductType')
     )
+    if design:
+        # Clear prior centerline sketches; cut preview replaces them when it works.
+        for occ in design.rootComponent.occurrences:
+            if occ.component.name == CLAMEX_COMPONENT_NAME:
+                delete_preview_sketches(occ.component)
+                break
+
+    # Tool-body cut preview first (executePreview transaction rolls it back).
+    try:
+        cut_count = draw_cut_preview(app, values, cam)
+        if cut_count:
+            return cut_count
+    except Exception as exc:
+        try:
+            app.log(f'Clamex cut preview failed, sketch fallback:\n{exc}')
+        except Exception:
+            pass
+
     if not design:
         return 0
 
