@@ -1,4 +1,9 @@
-"""Master Clamex connector-local toolpath definition (millimetres)."""
+"""
+Master Clamex connector-local toolpath definition (millimetres).
+
+Side and flat cavity geometry is defined in connector-local coordinates before
+transform.py maps it into world space using anchor and feed-axis selections.
+"""
 
 from enum import Enum
 
@@ -7,9 +12,6 @@ class MoveType(Enum):
     RAPID = 'rapid'
     FEED = 'feed'
 
-
-# Distance from anchor point to the T cross-point along the feed axis (P14 default).
-CROSS_OFFSET_MM = 36.2
 
 DEFAULT_CONNECTOR_TYPE = 'P14'
 
@@ -127,11 +129,13 @@ FLAT_MASTER_PATH_MM = [
 
 
 def flat_half_extent_mm(connector_type=None):
+    """Return half the flat cavity extent along feed for the connector type."""
     key = connector_type or DEFAULT_CONNECTOR_TYPE
     return CONNECTOR_FLAT_HALF_EXTENT_MM.get(key, CONNECTOR_FLAT_HALF_EXTENT_MM[DEFAULT_CONNECTOR_TYPE])
 
 
 def flat_max_depth_mm(connector_type=None):
+    """Return the maximum flat cavity depth at centre for the connector type."""
     key = connector_type or DEFAULT_CONNECTOR_TYPE
     return CONNECTOR_FLAT_MAX_DEPTH_MM.get(key, CONNECTOR_FLAT_MAX_DEPTH_MM[DEFAULT_CONNECTOR_TYPE])
 
@@ -150,15 +154,12 @@ def flat_point_chain(connector_type=None):
 # Slot length from cross-point to far end along +feed.
 SLOT_LENGTH_MM = 48.0
 
-# Legacy connector pocket depth (mm). Feed geometry is defined at depth=0 (anchor plane);
-# this constant documents the original connector-local cut depth for reference.
-CONNECTOR_POCKET_DEPTH_MM = 12.5
-
 # Offset applied to depth (Z0) when half tool thickness compensation is enabled.
 TOOL_HALF_THICKNESS_OFFSET_MM = -3.5
 
-# Master path in cross-local coordinates: feed along +feed, depth relative to anchor (0 = anchor plane).
-# The T cross / wiggle centre sits at feed=0, depth=0; the far end is at feed=SLOT_LENGTH_MM.
+# Side master path in cross-local coordinates: feed along +feed, depth relative to anchor
+# (0 = anchor plane). The T cross / wiggle centre sits at feed=0, depth=0; the far end is
+# at feed=SLOT_LENGTH_MM. Depth=0 is the anchor plane, not a legacy pocket depth offset.
 MASTER_PATH_MM = [
     (MoveType.RAPID, SLOT_LENGTH_MM, 0.0, 0.0),
     (MoveType.FEED, SLOT_LENGTH_MM, 0.0, 0.0),

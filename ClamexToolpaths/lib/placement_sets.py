@@ -1,4 +1,9 @@
-"""In-memory placement set state for the multi-set command dialog."""
+"""
+In-memory placement set state for the multi-set command dialog.
+
+Each tab (Side/Flat) owns a PlacementSetState with a table of sets and detail
+inputs synced to in-memory dicts for preview and generation.
+"""
 
 import adsk.core
 import adsk.fusion
@@ -9,6 +14,7 @@ from lib.toolpath_def import (
     default_flat_op_prefix,
     default_op_prefix,
 )
+from lib.ui_helpers import read_dropdown, select_dropdown
 
 MODE_SIDE = 'side'
 MODE_FLAT = 'flat'
@@ -184,28 +190,6 @@ def _read_clearance_mm(clearance_input, default):
         return default
 
 
-def _read_dropdown(dropdown, default):
-    if not dropdown:
-        return default
-    try:
-        if dropdown.selectedItem:
-            return dropdown.selectedItem.name
-    except Exception:
-        pass
-    for index in range(dropdown.listItems.count):
-        item = dropdown.listItems.item(index)
-        if item.isSelected:
-            return item.name
-    return default
-
-
-def _select_dropdown(dropdown, name):
-    if not dropdown:
-        return
-    for index in range(dropdown.listItems.count):
-        dropdown.listItems.item(index).isSelected = dropdown.listItems.item(index).name == name
-
-
 class PlacementSetState:
     """Manages placement sets for one tab (side or flat)."""
 
@@ -269,7 +253,7 @@ class PlacementSetState:
             set_data['reference_axis'] = None
 
         if detail['connector_type']:
-            set_data['connector_type'] = _read_dropdown(
+            set_data['connector_type'] = read_dropdown(
                 detail['connector_type'],
                 DEFAULT_CONNECTOR_TYPE,
             )
@@ -293,7 +277,7 @@ class PlacementSetState:
             if detail['drill_holes']:
                 set_data['drill_holes'] = detail['drill_holes'].value
             if detail['drill_tool']:
-                set_data['drill_tool_description'] = _read_dropdown(detail['drill_tool'], None)
+                set_data['drill_tool_description'] = read_dropdown(detail['drill_tool'], None)
             if detail['drill_clearance']:
                 set_data['drill_clearance_mm'] = _read_clearance_mm(
                     detail['drill_clearance'],
@@ -313,7 +297,7 @@ class PlacementSetState:
             _set_single_selection(detail['feed'], set_data.get('reference_axis'))
 
             if detail['connector_type']:
-                _select_dropdown(
+                select_dropdown(
                     detail['connector_type'],
                     set_data.get('connector_type', DEFAULT_CONNECTOR_TYPE),
                 )
@@ -334,7 +318,7 @@ class PlacementSetState:
                 if detail['drill_holes']:
                     detail['drill_holes'].value = set_data.get('drill_holes', False)
                 if detail['drill_tool']:
-                    _select_dropdown(detail['drill_tool'], set_data.get('drill_tool_description'))
+                    select_dropdown(detail['drill_tool'], set_data.get('drill_tool_description'))
                 if detail['drill_clearance']:
                     detail['drill_clearance'].value = str(
                         set_data.get('drill_clearance_mm', DEFAULT_DRILL_CLEARANCE_MM)
@@ -401,7 +385,7 @@ class PlacementSetState:
             _clear_selection(detail['anchors'])
             _clear_selection(detail['feed'])
             if detail['connector_type']:
-                _select_dropdown(detail['connector_type'], DEFAULT_CONNECTOR_TYPE)
+                select_dropdown(detail['connector_type'], DEFAULT_CONNECTOR_TYPE)
             if detail['flip_feed']:
                 detail['flip_feed'].value = self._defaults.get('flip_feed', False)
             if detail['flip_z']:
@@ -417,7 +401,7 @@ class PlacementSetState:
                 if detail['drill_holes']:
                     detail['drill_holes'].value = self._defaults.get('drill_holes', False)
                 if detail['drill_tool']:
-                    _select_dropdown(detail['drill_tool'], self._defaults.get('drill_tool_description'))
+                    select_dropdown(detail['drill_tool'], self._defaults.get('drill_tool_description'))
                 if detail['drill_clearance']:
                     detail['drill_clearance'].value = str(
                         self._defaults.get('drill_clearance_mm', DEFAULT_DRILL_CLEARANCE_MM)

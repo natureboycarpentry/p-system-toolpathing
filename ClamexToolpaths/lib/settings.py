@@ -7,6 +7,7 @@ SETTINGS_FILENAME = 'clamex_settings.json'
 
 
 def settings_prefix(mode):
+    """Return the persisted-settings key prefix for a tab mode ('side' or 'flat')."""
     return f'{mode}_'
 
 
@@ -25,50 +26,16 @@ def load_settings(addin_dir):
         return {}
 
 
-def save_settings(
-    addin_dir,
-    setup_name=None,
-    tool_description=None,
-    side_settings=None,
-    flat_settings=None,
-    op_prefix=None,
-    flip_feed=None,
-    flip_z=None,
-    tool_thickness_offset=None,
-    drill_holes=None,
-    drill_tool_description=None,
-    drill_clearance_mm=None,
-    positive_direction=None,
-    depth_positive_direction=None,
-    tool_half_thickness_offset=None,
-):
+def save_settings(addin_dir, setup_name=None, side_settings=None, flat_settings=None):
+    """
+    Merge and persist command settings.
+
+    side_settings / flat_settings are dicts whose keys are written as
+    side_<key> / flat_<key> in clamex_settings.json.
+    """
     data = load_settings(addin_dir)
     if setup_name is not None:
         data['setup_name'] = setup_name
-    if tool_description is not None:
-        data['tool_description'] = tool_description
-
-    if side_settings is None and any(
-        value is not None
-        for value in (
-            op_prefix,
-            flip_feed,
-            flip_z,
-            tool_thickness_offset,
-            drill_holes,
-            drill_tool_description,
-            drill_clearance_mm,
-        )
-    ):
-        side_settings = {
-            'op_prefix': op_prefix,
-            'flip_feed': flip_feed,
-            'flip_z': flip_z,
-            'tool_thickness_offset': tool_thickness_offset,
-            'drill_holes': drill_holes,
-            'drill_tool_description': drill_tool_description,
-            'drill_clearance_mm': drill_clearance_mm,
-        }
 
     for prefix, bucket in ((settings_prefix('side'), side_settings), (settings_prefix('flat'), flat_settings)):
         if not bucket:

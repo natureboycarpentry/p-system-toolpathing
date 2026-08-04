@@ -21,41 +21,48 @@ from lib.transform import (
     transform_feed_chain,
     transform_flat_chain,
 )
+from lib.units import mm_to_cm, negate_vector, offset_point
 
-_MM_TO_CM = 0.1
-
-
-def _negate(vector):
-    copy = vector.copy()
-    copy.scaleBy(-1.0)
-    return copy
+_DEFAULT_Z_HINT = adsk.core.Vector3D.create(0, 0, 1)
+_DEFAULT_X_HINT = adsk.core.Vector3D.create(1, 0, 0)
 
 
-def _offset_point(origin, axis, distance):
-    return adsk.core.Point3D.create(
-        origin.x + axis.x * distance,
-        origin.y + axis.y * distance,
-        origin.z + axis.z * distance,
-    )
+def _feed_only_world_points(anchor, feed_entity, flip_feed, connector_type):
+    """
+    Simplified side preview when full transform_feed_chain fails.
 
-
-def _feed_only_world_points(anchor, feed_entity, flip_feed, setup_z_axis, flip_z, connector_type):
+    Used when depth-axis resolution is incomplete during live preview; draws a
+    coarse feed-axis polyline instead of the full T-slot wiggle.
+    """
     anchor_origin = placement_anchor_point(anchor)
     feed_axis = reference_axis_direction(feed_entity)
     if flip_feed:
-        feed_axis = _negate(feed_axis)
+        feed_axis = negate_vector(feed_axis)
 
-    offset_mm = cross_offset_mm(connector_type)
-    cross = _offset_point(anchor_origin, feed_axis, offset_mm * _MM_TO_CM)
-    far_end = _offset_point(cross, feed_axis, SLOT_LENGTH_MM * _MM_TO_CM)
+    offset_cm = mm_to_cm(cross_offset_mm(connector_type))
+    cross = offset_point(anchor_origin, feed_axis, offset_cm)
+    far_end = offset_point(cross, feed_axis, mm_to_cm(SLOT_LENGTH_MM))
     return [far_end, cross, anchor_origin, cross, far_end]
+
+
+def _draw_anchor_marker(component, preview_name, anchor_origin, setup_z_axis, size_cm=0.25):
+    """Draw a fallback cross marker when a full path cannot be resolved."""
+    z_hint = setup_z_axis or _DEFAULT_Z_HINT
+    create_marker_sketch(
+        component,
+        preview_name,
+        anchor_origin,
+        _DEFAULT_X_HINT,
+        z_hint,
+        size_cm,
+    )
 
 
 def _side_world_points_for_anchor(anchor, set_data, setup_z_axis):
     has_feed = set_data.get('reference_axis') is not None
     connector_type = set_data.get('connector_type')
     offset_mm = cross_offset_mm(connector_type)
-    z_axis = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
+    z_axis = setup_z_axis or _DEFAULT_Z_HINT
 
     if has_feed:
         try:
@@ -74,8 +81,6 @@ def _side_world_points_for_anchor(anchor, set_data, setup_z_axis):
                 anchor,
                 set_data['reference_axis'],
                 set_data.get('flip_feed', False),
-                setup_z_axis,
-                set_data.get('flip_z', False),
                 connector_type,
             )
 
@@ -85,7 +90,7 @@ def _side_world_points_for_anchor(anchor, set_data, setup_z_axis):
 def _flat_world_points_for_anchor(anchor, set_data, setup_z_axis):
     if not set_data.get('reference_axis'):
         return None
-    z_axis = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
+    z_axis = setup_z_axis or _DEFAULT_Z_HINT
     return transform_flat_chain(
         anchor,
         flat_point_chain(set_data.get('connector_type')),
@@ -141,16 +146,11 @@ def draw_toolpath_preview(app, values, cam):
                     if world_points:
                         create_flat_path_sketch(component, preview_name, world_points)
                     else:
-                        anchor_origin = placement_anchor_point(anchor)
-                        z_hint = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
-                        x_hint = adsk.core.Vector3D.create(1, 0, 0)
-                        create_marker_sketch(
+                        _draw_anchor_marker(
                             component,
                             preview_name,
-                            anchor_origin,
-                            x_hint,
-                            z_hint,
-                            0.25,
+                            placement_anchor_point(anchor),
+                            setup_z_axis,
                         )
                     drawn += 1
                     continue
@@ -159,16 +159,11 @@ def draw_toolpath_preview(app, values, cam):
                 if world_points:
                     create_feed_path_sketch(component, preview_name, world_points)
                 else:
-                    anchor_origin = placement_anchor_point(anchor)
-                    z_hint = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
-                    x_hint = adsk.core.Vector3D.create(1, 0, 0)
-                    create_marker_sketch(
+                    _draw_anchor_marker(
                         component,
                         preview_name,
-                        anchor_origin,
-                        x_hint,
-                        z_hint,
-                        0.25,
+                        placement_anchor_point(anchor),
+                        setup_z_axis,
                     )
                 drawn += 1
 
@@ -185,16 +180,13 @@ def draw_toolpath_preview(app, values, cam):
                         set_data.get('flip_z', False),
                         set_data.get('connector_type'),
                     )
-                    z_hint = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
-                    x_hint = adsk.core.Vector3D.create(1, 0, 0)
                     drill_preview_name = f'{preview_name} drill'
-                    create_marker_sketch(
+                    _draw_anchor_marker(
                         component,
                         drill_preview_name,
                         hole_point,
-                        x_hint,
-                        z_hint,
-                        0.2,
+                        setup_z_axis,
+                        size_cm=0.2,
                     )
                     drawn += 1
             except Exception:

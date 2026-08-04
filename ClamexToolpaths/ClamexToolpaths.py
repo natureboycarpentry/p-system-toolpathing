@@ -1,4 +1,9 @@
-"""Clamex Toolpaths Fusion 360 add-in entry point."""
+"""
+Clamex Toolpaths Fusion 360 add-in entry point.
+
+Adds the add-in directory to sys.path, purges cached lib/commands modules on
+Stop/Run, and delegates lifecycle to commands.generate_clamex.entry.
+"""
 
 import os
 import sys

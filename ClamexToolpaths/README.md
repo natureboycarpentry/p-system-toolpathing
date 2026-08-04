@@ -34,7 +34,7 @@ The command **Generate Clamex Toolpaths** appears under **Manufacture → ADD-IN
 
    **Flat set details**
    - **Anchor points**, **Feed axis**, **Connector type** (P14 / P10)
-   - **Flip feed**
+   - **Flip feed**, **Flip Z**
    - **Operation name prefix** — defaults to **P14 - Flat** / **P10 - Flat**
 
    A **live preview** for the **active tab** appears as temporary sketches under **Clamex Toolpaths**.
@@ -63,10 +63,14 @@ The command **Generate Clamex Toolpaths** appears under **Manufacture → ADD-IN
    - **P14:** ±36.434 mm extent, **14 mm** max depth
    - **P10:** ±31.5 mm extent (63 mm total), **10 mm** max depth
 
+## Developer notes
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for module layout, naming conventions, settings shape, and a manual smoke checklist.
+
 ## Troubleshooting
 
 - **Command not visible:** Ensure the add-in is **Run** and you are in **Manufacture**.
 - **Preview not visible:** Check **Clamex Toolpaths** for `__Preview__` sketches; ensure the component light bulb is on.
 - **Error on OK:** The **active** tab needs at least one valid set (anchors + feed axis), Setup must be selected, and that tab's Tool must be selected. Side sets with drill enabled also need a drill tool.
-- **Toolpath in wrong place:** Select the correct tab and set row; adjust feed axis or **Flip feed** (Side: also **Flip Z**).
+- **Toolpath in wrong place:** Select the correct tab and set row; adjust feed axis, **Flip feed**, or **Flip Z** (Side and Flat).
 - **Geometry not found in CAM:** Ensure the setup includes the **Clamex Toolpaths** component.

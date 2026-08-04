@@ -1,4 +1,9 @@
-"""Generate Clamex Toolpaths command handlers."""
+"""
+Generate Clamex Toolpaths command handlers.
+
+Registers the Manufacture command, wires dialog/preview handlers, and orchestrates
+Side/Flat sketch + CAM operation generation on OK.
+"""
 
 import os
 import traceback
@@ -225,10 +230,6 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             cmd.activate.add(on_activate)
             _handlers.append(on_activate)
 
-            on_validate = CommandValidateHandler(state)
-            cmd.validateInputs.add(on_validate)
-            _handlers.append(on_validate)
-
             on_input_changed = CommandInputChangedHandler(cmd, state)
             cmd.inputChanged.add(on_input_changed)
             _handlers.append(on_input_changed)
@@ -271,7 +272,7 @@ def _request_toolpath_preview(command):
 def _draw_toolpath_preview(inputs, state):
     app = adsk.core.Application.get()
     cam = adsk.cam.CAM.cast(app.activeProduct)
-    values = read_preview_values(inputs, state, cam)
+    values = read_preview_values(inputs, state)
     if not values:
         return
     drawn = draw_toolpath_preview(app, values, cam)
@@ -281,15 +282,6 @@ def _draw_toolpath_preview(inputs, state):
     if viewport:
         viewport.refresh()
 
-
-class CommandValidateHandler(adsk.core.ValidateInputsEventHandler):
-    def __init__(self, state):
-        super().__init__()
-        self._state = state
-
-    def notify(self, args):
-        event_args = adsk.core.ValidateInputsEventArgs.cast(args)
-        event_args.areInputsValid = True
 
 
 class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):

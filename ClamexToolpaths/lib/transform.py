@@ -1,12 +1,15 @@
-"""Transform master path points using a placement anchor and reference axes."""
+"""
+Transform master path points using a placement anchor and reference axes.
+
+Resolves anchor/feed/WCS axes from Fusion selections and maps connector-local
+millimetre paths into world-space Point3D chains for sketch creation.
+"""
 
 import adsk.core
 import adsk.fusion
 
 from lib.toolpath_def import TOOL_HALF_THICKNESS_OFFSET_MM, hole_offset_mm
-
-# Fusion's geometry API uses centimetres internally.
-_MM_TO_CM = 0.1
+from lib.units import MM_TO_CM, negate_vector
 
 
 def _unit_vector(vector):
@@ -16,9 +19,7 @@ def _unit_vector(vector):
 
 
 def _negate_copy(vector):
-    copy = vector.copy()
-    copy.scaleBy(-1.0)
-    return copy
+    return negate_vector(vector)
 
 
 def joint_origin_frame(joint_origin):
@@ -236,12 +237,12 @@ def transform_feed_chain(
         flip_z,
     )
 
-    cross_offset_cm = cross_offset_mm * _MM_TO_CM
+    cross_offset_cm = cross_offset_mm * MM_TO_CM
     depth_z0_offset_mm = TOOL_HALF_THICKNESS_OFFSET_MM if tool_thickness_offset else 0.0
     world_points = []
     for feed_mm, _cross, depth_mm in local_points:
-        feed_cm = cross_offset_cm + (feed_mm * _MM_TO_CM)
-        depth_cm = (depth_mm + depth_z0_offset_mm) * _MM_TO_CM
+        feed_cm = cross_offset_cm + (feed_mm * MM_TO_CM)
+        depth_cm = (depth_mm + depth_z0_offset_mm) * MM_TO_CM
         world_points.append(
             adsk.core.Point3D.create(
                 anchor_origin.x + feed_cm * feed_axis.x + (-depth_cm) * depth_axis.x,
@@ -271,8 +272,8 @@ def transform_flat_chain(
 
     world_points = []
     for feed_mm, depth_mm in local_points:
-        feed_cm = feed_mm * _MM_TO_CM
-        depth_cm = depth_mm * _MM_TO_CM
+        feed_cm = feed_mm * MM_TO_CM
+        depth_cm = depth_mm * MM_TO_CM
         world_points.append(
             adsk.core.Point3D.create(
                 anchor_origin.x + feed_cm * feed_axis.x + (-depth_cm) * depth_axis.x,
@@ -299,14 +300,9 @@ def drill_hole_world_point(
         flip_feed,
         flip_z,
     )
-    offset_cm = hole_offset_mm(connector_type) * _MM_TO_CM
+    offset_cm = hole_offset_mm(connector_type) * MM_TO_CM
     return adsk.core.Point3D.create(
         anchor_origin.x - offset_cm * feed_axis.x,
         anchor_origin.y - offset_cm * feed_axis.y,
         anchor_origin.z - offset_cm * feed_axis.z,
     )
-
-
-def joint_origin_display_name(joint_origin):
-    """Deprecated alias for placement_display_name."""
-    return placement_display_name(joint_origin)

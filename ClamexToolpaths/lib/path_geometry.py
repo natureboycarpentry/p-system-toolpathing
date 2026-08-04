@@ -1,4 +1,9 @@
-"""Create and update Clamex path sketch geometry in a dedicated component."""
+"""
+Create and update Clamex path sketch geometry in a dedicated component.
+
+Owns the root-level Clamex Toolpaths component and creates/replaces feed, flat,
+drill, marker, and preview sketches used by preview and CAM generation.
+"""
 
 import adsk.core
 import adsk.fusion
@@ -18,22 +23,17 @@ def drill_sketch_name_for_placement(placement_name):
     return f'{DRILL_SKETCH_PREFIX}{placement_name}'
 
 
-def drill_sketch_name_for_placement(placement_name):
-    return f'{DRILL_SKETCH_PREFIX}{placement_name}'
-
-
 def flat_sketch_name_for_placement(placement_name):
     return f'{FLAT_SKETCH_PREFIX}{placement_name}'
 
 
-def create_flat_path_sketch(component, placement_name, world_points):
-    """Create a named 3D sketch for a flat top-face cavity path."""
+def _create_polyline_sketch(component, sketch_name, world_points, path_label):
+    """Create or replace a named 3D sketch containing an open polyline."""
     if len(world_points) < 2:
         raise ValueError(
-            f'Need at least two points for flat path "{placement_name}", got {len(world_points)}'
+            f'Need at least two points for {path_label} "{sketch_name}", got {len(world_points)}'
         )
 
-    sketch_name = flat_sketch_name_for_placement(placement_name)
     _delete_sketch_by_name(component, sketch_name)
 
     sketch = component.sketches.add(component.xYConstructionPlane)
@@ -48,6 +48,16 @@ def create_flat_path_sketch(component, placement_name, world_points):
         sketch_lines.append(line)
 
     return sketch, sketch_lines
+
+
+def create_flat_path_sketch(component, placement_name, world_points):
+    """Create a named 3D sketch for a flat top-face cavity path."""
+    return _create_polyline_sketch(
+        component,
+        flat_sketch_name_for_placement(placement_name),
+        world_points,
+        'flat path',
+    )
 
 
 def get_or_create_clamex_component(design):
@@ -131,27 +141,12 @@ def create_feed_path_sketch(component, placement_name, world_points):
     Any existing sketch with the same name in the component is replaced first.
     Returns (sketch, list of SketchLine entities).
     """
-    if len(world_points) < 2:
-        raise ValueError(
-            f'Need at least two feed points for "{placement_name}", got {len(world_points)}'
-        )
-
-    sketch_name = sketch_name_for_placement(placement_name)
-    _delete_sketch_by_name(component, sketch_name)
-
-    sketch = component.sketches.add(component.xYConstructionPlane)
-    sketch.name = sketch_name
-
-    if hasattr(sketch, 'is3D'):
-        sketch.is3D = True
-
-    lines = sketch.sketchCurves.sketchLines
-    sketch_lines = []
-    for index in range(len(world_points) - 1):
-        line = lines.addByTwoPoints(world_points[index], world_points[index + 1])
-        sketch_lines.append(line)
-
-    return sketch, sketch_lines
+    return _create_polyline_sketch(
+        component,
+        sketch_name_for_placement(placement_name),
+        world_points,
+        'feed path',
+    )
 
 
 def create_drill_point_sketch(component, placement_name, world_point):

@@ -1,4 +1,9 @@
-"""Command dialog inputs for Generate Clamex Toolpaths."""
+"""
+Command dialog inputs for Generate Clamex Toolpaths.
+
+Builds Side/Flat tabs, reads preview/generation values, and routes inputChanged
+events to placement-set state.
+"""
 
 import adsk.core
 import adsk.cam
@@ -22,6 +27,7 @@ from lib.toolpath_def import (
     default_flat_op_prefix,
     default_op_prefix,
 )
+from lib.ui_helpers import read_dropdown, select_dropdown
 
 _REFERENCE_AXIS_FILTERS = (
     'LinearEdges',
@@ -37,20 +43,15 @@ _ANCHOR_POINT_FILTERS = (
 )
 
 
-def _dropdown_index(dropdown, text):
-    for index in range(dropdown.listItems.count):
-        if dropdown.listItems.item(index).name == text:
-            return index
-    return 0
+def _read_setup_name(inputs):
+    setup_dropdown = adsk.core.DropDownCommandInput.cast(inputs.itemById(INPUT_SETUP))
+    return read_dropdown(setup_dropdown)
 
 
-def _select_dropdown_item(dropdown, preferred_name=None):
-    if dropdown.listItems.count == 0:
-        return
-    index = _dropdown_index(dropdown, preferred_name) if preferred_name else 0
-    if preferred_name and dropdown.listItems.item(index).name != preferred_name:
-        index = 0
-    dropdown.listItems.item(index).isSelected = True
+def _read_tool_for_mode(inputs, mode):
+    ids = PlacementSetState(mode).ids
+    tool_dropdown = adsk.core.DropDownCommandInput.cast(inputs.itemById(ids.TOOL))
+    return read_dropdown(tool_dropdown)
 
 
 def _load_set_defaults(saved, mode):
@@ -91,37 +92,6 @@ def _load_set_defaults(saved, mode):
             saved.get('tool_description'),
         ),
     }
-
-
-def _read_setup_name(inputs):
-    setup_dropdown = adsk.core.DropDownCommandInput.cast(inputs.itemById(INPUT_SETUP))
-    if not setup_dropdown:
-        return None
-
-    setup_name = setup_dropdown.selectedItem.name if setup_dropdown.selectedItem else None
-    if not setup_name:
-        for index in range(setup_dropdown.listItems.count):
-            item = setup_dropdown.listItems.item(index)
-            if item.isSelected:
-                setup_name = item.name
-                break
-    return setup_name
-
-
-def _read_tool_for_mode(inputs, mode):
-    ids = PlacementSetState(mode).ids
-    tool_dropdown = adsk.core.DropDownCommandInput.cast(inputs.itemById(ids.TOOL))
-    if not tool_dropdown:
-        return None
-
-    tool_desc = tool_dropdown.selectedItem.name if tool_dropdown.selectedItem else None
-    if not tool_desc:
-        for index in range(tool_dropdown.listItems.count):
-            item = tool_dropdown.listItems.item(index)
-            if item.isSelected:
-                tool_desc = item.name
-                break
-    return tool_desc
 
 
 def update_drill_input_visibility(inputs):
@@ -184,7 +154,7 @@ def _build_mode_inputs(parent_inputs, cam, mode, set_defaults, tools):
     )
     connector_dropdown.listItems.add('P14', False, '')
     connector_dropdown.listItems.add('P10', False, '')
-    _select_dropdown_item(
+    select_dropdown(
         connector_dropdown,
         set_defaults.get('connector_type', DEFAULT_CONNECTOR_TYPE),
     )
@@ -241,7 +211,7 @@ def _build_mode_inputs(parent_inputs, cam, mode, set_defaults, tools):
         )
         for desc, _tool in tools:
             drill_tool_dropdown.listItems.add(desc, False, '')
-        _select_dropdown_item(drill_tool_dropdown, set_defaults.get('drill_tool_description'))
+        select_dropdown(drill_tool_dropdown, set_defaults.get('drill_tool_description'))
 
         parent_inputs.addStringValueInput(
             ids.DRILL_CLEARANCE,
@@ -256,7 +226,7 @@ def _build_mode_inputs(parent_inputs, cam, mode, set_defaults, tools):
     )
     for desc, _tool in tools:
         tool_dropdown.listItems.add(desc, False, '')
-    _select_dropdown_item(tool_dropdown, set_defaults.get('tool_description'))
+    select_dropdown(tool_dropdown, set_defaults.get('tool_description'))
 
     return state
 
@@ -297,7 +267,7 @@ def build_dialog_inputs(inputs, cam, addin_dir):
     )
     for setup in setups:
         setup_dropdown.listItems.add(setup.name, False, '')
-    _select_dropdown_item(setup_dropdown, saved.get('setup_name'))
+    select_dropdown(setup_dropdown, saved.get('setup_name'))
 
     update_drill_input_visibility(inputs)
 
@@ -323,7 +293,7 @@ def seed_anchor_selection(inputs, dialog_state):
     dialog_state.active_state().seed_first_set_anchors(inputs, entities)
 
 
-def read_preview_values(inputs, dialog_state, cam):
+def read_preview_values(inputs, dialog_state):
     dialog_state.sync_active_mode_from_inputs(inputs)
     setup_name = _read_setup_name(inputs)
     mode = dialog_state.active_mode

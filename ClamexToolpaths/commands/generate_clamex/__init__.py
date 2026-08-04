@@ -1,1 +1,1 @@
-# Generate Clamex Toolpaths command package
+"""Generate Clamex Toolpaths command package."""

@@ -1,4 +1,9 @@
-"""Create Trace CAM operations, assign geometry, and generate toolpaths."""
+"""
+Create Trace and Drill CAM operations, assign geometry, and generate toolpaths.
+
+Lists setups/tools from the active CAM document, resolves WCS Z for depth axis
+mapping, and replaces prior Clamex ops with the same display name on regenerate.
+"""
 
 import adsk.cam
 import adsk.core
