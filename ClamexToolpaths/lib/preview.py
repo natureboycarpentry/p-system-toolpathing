@@ -1,0 +1,203 @@
+"""Live command preview using temporary 3D sketches (visible in Manufacture)."""
+
+import adsk.core
+import adsk.fusion
+
+from lib.cam_ops import find_setup_by_name, setup_wcs_z_axis
+from lib.path_geometry import (
+    PREVIEW_PLACEMENT_PREFIX,
+    create_feed_path_sketch,
+    create_flat_path_sketch,
+    create_marker_sketch,
+    delete_preview_sketches,
+    get_or_create_clamex_component,
+)
+from lib.placement_sets import MODE_FLAT, MODE_SIDE
+from lib.toolpath_def import SLOT_LENGTH_MM, cross_offset_mm, feed_point_chain, flat_point_chain
+from lib.transform import (
+    drill_hole_world_point,
+    placement_anchor_point,
+    reference_axis_direction,
+    transform_feed_chain,
+    transform_flat_chain,
+)
+
+_MM_TO_CM = 0.1
+
+
+def _negate(vector):
+    copy = vector.copy()
+    copy.scaleBy(-1.0)
+    return copy
+
+
+def _offset_point(origin, axis, distance):
+    return adsk.core.Point3D.create(
+        origin.x + axis.x * distance,
+        origin.y + axis.y * distance,
+        origin.z + axis.z * distance,
+    )
+
+
+def _feed_only_world_points(anchor, feed_entity, flip_feed, setup_z_axis, flip_z, connector_type):
+    anchor_origin = placement_anchor_point(anchor)
+    feed_axis = reference_axis_direction(feed_entity)
+    if flip_feed:
+        feed_axis = _negate(feed_axis)
+
+    offset_mm = cross_offset_mm(connector_type)
+    cross = _offset_point(anchor_origin, feed_axis, offset_mm * _MM_TO_CM)
+    far_end = _offset_point(cross, feed_axis, SLOT_LENGTH_MM * _MM_TO_CM)
+    return [far_end, cross, anchor_origin, cross, far_end]
+
+
+def _side_world_points_for_anchor(anchor, set_data, setup_z_axis):
+    has_feed = set_data.get('reference_axis') is not None
+    connector_type = set_data.get('connector_type')
+    offset_mm = cross_offset_mm(connector_type)
+    z_axis = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
+
+    if has_feed:
+        try:
+            return transform_feed_chain(
+                anchor,
+                feed_point_chain(),
+                set_data['reference_axis'],
+                z_axis,
+                set_data.get('flip_feed', False),
+                set_data.get('flip_z', False),
+                set_data.get('tool_thickness_offset', True),
+                offset_mm,
+            )
+        except Exception:
+            return _feed_only_world_points(
+                anchor,
+                set_data['reference_axis'],
+                set_data.get('flip_feed', False),
+                setup_z_axis,
+                set_data.get('flip_z', False),
+                connector_type,
+            )
+
+    return None
+
+
+def _flat_world_points_for_anchor(anchor, set_data, setup_z_axis):
+    if not set_data.get('reference_axis'):
+        return None
+    z_axis = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
+    return transform_flat_chain(
+        anchor,
+        flat_point_chain(set_data.get('connector_type')),
+        set_data['reference_axis'],
+        z_axis,
+        set_data.get('flip_feed', False),
+        set_data.get('flip_z', False),
+    )
+
+
+def draw_toolpath_preview(app, values, cam):
+    """Draw transient preview sketches for the active tab's placement sets."""
+    placement_sets = values.get('placement_sets') if values else None
+    if not placement_sets:
+        return 0
+
+    mode = values.get('mode', MODE_SIDE)
+    setup_z_axis = None
+    setup_name = values.get('setup_name')
+    if setup_name and cam:
+        setup = find_setup_by_name(cam, setup_name)
+        if setup:
+            try:
+                setup_z_axis = setup_wcs_z_axis(setup)
+            except Exception:
+                setup_z_axis = None
+
+    design = adsk.fusion.Design.cast(
+        app.activeDocument.products.itemByProductType('DesignProductType')
+    )
+    if not design:
+        return 0
+
+    component, occurrence = get_or_create_clamex_component(design)
+    if occurrence:
+        occurrence.isLightBulbOn = True
+
+    delete_preview_sketches(component)
+
+    drawn = 0
+    preview_index = 0
+    for set_data in placement_sets:
+        anchors = set_data.get('anchor_points') or []
+        for anchor in anchors:
+            preview_index += 1
+            preview_name = PREVIEW_PLACEMENT_PREFIX
+            if preview_index > 1:
+                preview_name = f'{PREVIEW_PLACEMENT_PREFIX} {preview_index}'
+
+            try:
+                if mode == MODE_FLAT:
+                    world_points = _flat_world_points_for_anchor(anchor, set_data, setup_z_axis)
+                    if world_points:
+                        create_flat_path_sketch(component, preview_name, world_points)
+                    else:
+                        anchor_origin = placement_anchor_point(anchor)
+                        z_hint = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
+                        x_hint = adsk.core.Vector3D.create(1, 0, 0)
+                        create_marker_sketch(
+                            component,
+                            preview_name,
+                            anchor_origin,
+                            x_hint,
+                            z_hint,
+                            0.25,
+                        )
+                    drawn += 1
+                    continue
+
+                world_points = _side_world_points_for_anchor(anchor, set_data, setup_z_axis)
+                if world_points:
+                    create_feed_path_sketch(component, preview_name, world_points)
+                else:
+                    anchor_origin = placement_anchor_point(anchor)
+                    z_hint = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
+                    x_hint = adsk.core.Vector3D.create(1, 0, 0)
+                    create_marker_sketch(
+                        component,
+                        preview_name,
+                        anchor_origin,
+                        x_hint,
+                        z_hint,
+                        0.25,
+                    )
+                drawn += 1
+
+                if (
+                    set_data.get('drill_holes')
+                    and set_data.get('reference_axis') is not None
+                    and setup_z_axis
+                ):
+                    hole_point = drill_hole_world_point(
+                        anchor,
+                        set_data['reference_axis'],
+                        setup_z_axis,
+                        set_data.get('flip_feed', False),
+                        set_data.get('flip_z', False),
+                        set_data.get('connector_type'),
+                    )
+                    z_hint = setup_z_axis or adsk.core.Vector3D.create(0, 0, 1)
+                    x_hint = adsk.core.Vector3D.create(1, 0, 0)
+                    drill_preview_name = f'{preview_name} drill'
+                    create_marker_sketch(
+                        component,
+                        drill_preview_name,
+                        hole_point,
+                        x_hint,
+                        z_hint,
+                        0.2,
+                    )
+                    drawn += 1
+            except Exception:
+                continue
+
+    return drawn

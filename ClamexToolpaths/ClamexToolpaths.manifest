@@ -1,0 +1,13 @@
+{
+    "autodeskProduct": "Fusion360",
+    "type": "addin",
+    "id": "8f3c2a1b-4d5e-6f70-8192-clamextoolpaths",
+    "author": "NatureBoy Carpentry",
+    "description": {
+        "": "Generate Clamex Trace toolpaths at selected anchor points."
+    },
+    "version": "1.0.0",
+    "runOnStartup": true,
+    "supportedOS": "windows|mac",
+    "editEnabled": true
+}
