@@ -27,7 +27,7 @@
   <h2>First use</h2>
   <ol>
     <li>Open a design with placement points (Joint Origins, sketch points, vertices, or construction points).</li>
-    <li>Ensure at least one <strong>milling Setup</strong> exists (with WCS defined) and suitable tools are in the document tool library.</li>
+    <li>Ensure at least one <strong>milling Setup</strong> exists (with WCS defined). If the document tool library is empty, the add-in offers to install bundled Lamello sample tools; you can also use <strong>Add sample tools</strong> on the Setup tab later.</li>
     <li>Run <strong>Lamello P-System CNC Toolpath Addin</strong>.</li>
     <li>On the <strong>Setup</strong> tab, choose the setup and Side / Flat / Drill tools. Expand each tool’s parameters group to edit feeds and speeds if needed.</li>
     <li>On the <strong>Side</strong> or <strong>Flat</strong> tab, add placement sets: select anchor points, feed axis, and connector type (P14 / P10). Adjust Flip feed / Flip Z and optional Side drill options as needed.</li>
@@ -44,6 +44,7 @@
 
   <h2>Troubleshooting</h2>
   <ul>
+    <li><strong>No tools found:</strong> choose Yes when prompted to install sample tools, or use <strong>Add sample tools</strong> on the Setup tab after adding your own tools.</li>
     <li><strong>No CAM setups found:</strong> create a milling Setup with WCS, then re-run.</li>
     <li><strong>Command not visible:</strong> ensure the add-in is running and you are in Manufacture.</li>
     <li><strong>Preview missing:</strong> enable Preview, then check the <code>Clamex Toolpaths</code> component light bulb.</li>

@@ -17,6 +17,15 @@ from lib.cam_ops import (
     tool_flute_length_mm,
 )
 from lib.errors import UserFacingError
+from lib.example_tools import (
+    SAMPLE_DRILL_DESCRIPTION,
+    SAMPLE_FLAT_DESCRIPTION,
+    SAMPLE_PREFERRED_BY_SECTION,
+    SAMPLE_SIDE_DESCRIPTION,
+    add_example_tools,
+    format_add_result_message,
+    prompt_add_example_tools_if_empty,
+)
 from lib.placement_sets import (
     MODE_FLAT,
     MODE_SIDE,
@@ -24,6 +33,7 @@ from lib.placement_sets import (
     TAB_SETUP_TOOL,
     TAB_SIDE,
     DialogState,
+    INPUT_ADD_EXAMPLE_TOOLS,
     INPUT_PREVIEW,
     INPUT_SETUP,
     PlacementSetState,
@@ -310,12 +320,7 @@ def build_dialog_inputs(inputs, cam, addin_dir):
             'then re-run the add-in'
         )
 
-    tools = list_document_tools(cam)
-    if not tools:
-        raise UserFacingError(
-            'No tools found in the document tool library, please add the required '
-            'milling tools to a setup, then re-run the add-in'
-        )
+    tools = prompt_add_example_tools_if_empty(cam, addin_dir)
 
     # Tab 1: Setup (setup + tool selection and parameters)
     setup_tool_tab = inputs.addTabCommandInput(TAB_SETUP_TOOL, 'Setup')
@@ -335,13 +340,29 @@ def build_dialog_inputs(inputs, cam, addin_dir):
     select_dropdown(setup_dropdown, saved.get('setup_name'))
 
     controller = ToolParamsController()
+    tool_names = {desc for desc, _tool in tools}
+    side_default = saved.get('side_tool_description', saved.get('tool_description'))
+    if not side_default or side_default not in tool_names:
+        if SAMPLE_SIDE_DESCRIPTION in tool_names:
+            side_default = SAMPLE_SIDE_DESCRIPTION
+    flat_default = saved.get('flat_tool_description', saved.get('tool_description'))
+    if not flat_default or flat_default not in tool_names:
+        if SAMPLE_FLAT_DESCRIPTION in tool_names:
+            flat_default = SAMPLE_FLAT_DESCRIPTION
+    drill_default = saved.get(
+        'side_drill_tool_description', saved.get('drill_tool_description')
+    )
+    if not drill_default or drill_default not in tool_names:
+        if SAMPLE_DRILL_DESCRIPTION in tool_names:
+            drill_default = SAMPLE_DRILL_DESCRIPTION
+
     controller.build_section(
         setup_inputs,
         SECTION_SIDE,
         'Side tool',
         'Side tool parameters',
         tools,
-        saved.get('side_tool_description', saved.get('tool_description')),
+        side_default,
         tooltip=(
             'Document-library tool used for Side Trace operations. '
             'The parameters below belong to this tool.'
@@ -353,7 +374,7 @@ def build_dialog_inputs(inputs, cam, addin_dir):
         'Flat tool',
         'Flat tool parameters',
         tools,
-        saved.get('flat_tool_description', saved.get('tool_description')),
+        flat_default,
         tooltip=(
             'Document-library tool used for Flat (top-face cavity) Trace operations. '
             'The parameters below belong to this tool.'
@@ -365,11 +386,24 @@ def build_dialog_inputs(inputs, cam, addin_dir):
         'Drill tool',
         'Drill tool parameters',
         tools,
-        saved.get('side_drill_tool_description', saved.get('drill_tool_description')),
+        drill_default,
         tooltip=(
             'Document-library tool used for optional Side key-hole Drill operations. '
             'The parameters below belong to this tool.'
         ),
+    )
+
+    add_samples = setup_inputs.addBoolValueInput(
+        INPUT_ADD_EXAMPLE_TOOLS,
+        'Add sample tools',
+        False,
+        '',
+        False,
+    )
+    add_samples.tooltip = (
+        'Add the bundled Lamello sample tools (side cutter, vertical cutter, '
+        'and drill) to this document\'s tool library. Tools that already exist '
+        'by name are skipped.'
     )
 
     # Tabs 2 and 3: milling tabs
@@ -407,6 +441,7 @@ def build_dialog_inputs(inputs, cam, addin_dir):
 
     dialog_state = DialogState(side_state, flat_state)
     dialog_state.tool_controller = controller
+    dialog_state.addin_dir = addin_dir
     controller.refresh_all(inputs, cam)
     activate_tab_inputs(inputs, dialog_state)
     return dialog_state
@@ -567,6 +602,27 @@ def handle_input_changed(changed_input, inputs, dialog_state, command):
         ):
             # Tool diameter/flute drives cut-preview solids / offset.
             preview_requested = True
+    elif input_id == INPUT_ADD_EXAMPLE_TOOLS:
+        bool_input = adsk.core.BoolValueCommandInput.cast(changed_input)
+        if bool_input and bool_input.value:
+            bool_input.value = False
+            cam = adsk.cam.CAM.cast(adsk.core.Application.get().activeProduct)
+            ui = adsk.core.Application.get().userInterface
+            try:
+                added, skipped = add_example_tools(cam, dialog_state.addin_dir)
+                tools = list_document_tools(cam)
+                if controller:
+                    controller.refresh_tool_lists(
+                        inputs, tools, SAMPLE_PREFERRED_BY_SECTION
+                    )
+                    controller.refresh_all(inputs, cam)
+                ui.messageBox(
+                    format_add_result_message(added, skipped),
+                    'Lamello P-System',
+                )
+                preview_requested = True
+            except UserFacingError as exc:
+                ui.messageBox(str(exc), 'Lamello P-System')
     elif input_id == INPUT_SETUP:
         # Setup WCS drives the preview depth axis.
         preview_requested = True

@@ -24,7 +24,7 @@ The command **Lamello P-System CNC Toolpath Addin** appears under **Manufacture 
 ## Usage
 
 1. Open a design with placement points defined (Joint Origins, sketch points, vertices, or construction points).
-2. Switch to the **Manufacture** workspace and ensure at least one **milling Setup** exists (with WCS defined) and suitable tools are in the document tool library. If either is missing, the add-in shows a friendly reminder instead of opening.
+2. Switch to the **Manufacture** workspace and ensure at least one **milling Setup** exists (with WCS defined). If the document tool library is empty, the add-in can install bundled Lamello sample tools; otherwise add your own tools first.
 3. Run **Lamello P-System CNC Toolpath Addin**.
 4. In the dialog:
 
@@ -32,6 +32,7 @@ The command **Lamello P-System CNC Toolpath Addin** appears under **Manufacture 
    - **Setup** — the milling setup whose WCS defines depth (+Z)
    - **Side tool / Flat tool / Drill tool** — document-library tools for each operation type
    - Each tool has an expandable **tool parameters** group (spindle speed, surface speed, cutting/plunge/ramp feedrates, feed per tooth). Edits are written back to the document tool library and apply to every operation using that tool.
+   - **Add sample tools** — installs the bundled Lamello side cutter, vertical cutter, and drill into the document library (skips names that already exist).
 
    **Side tab** — side T-slot machining
 

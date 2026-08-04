@@ -1,0 +1,384 @@
+{
+    "data": [
+        {
+            "BMC": "hss",
+            "GRADE": "Mill Generic",
+            "description": "Lamello Vertical Cutter",
+            "expressions": {
+                "holder_description": "'Iso-30'",
+                "tool_bodyLength": "39 mm",
+                "tool_cornerRadius": "1.5 mm",
+                "tool_description": "'Lamello Vertical Cutter'",
+                "tool_diameter": "9.8 mm",
+                "tool_fluteLength": "3 mm",
+                "tool_number": "8",
+                "tool_numberOfFlutes": "2",
+                "tool_overallLength": "90 mm",
+                "tool_productLink": "'https://www.artifex24.de/JSO-VHW-Profilfraeser-Pendelfraeser-fuer-Lamello-P-System-Diamantbeschichtet'",
+                "tool_shaftDiameter": "7 mm",
+                "tool_shoulderLength": "24 mm",
+                "tool_vendor": "'Artifex24'"
+            },
+            "geometry": {
+                "CSP": false,
+                "DC": 9.8,
+                "HAND": true,
+                "LB": 39,
+                "LCF": 3,
+                "NOF": 2,
+                "NT": 1,
+                "OAL": 90,
+                "RE": 1.5,
+                "SFDM": 7,
+                "TA": 0,
+                "TP": 0,
+                "assemblyGaugeLength": 94,
+                "shoulder-diameter": 7,
+                "shoulder-length": 24,
+                "thread-profile-angle": 60,
+                "tip-diameter": 6.800000000000001,
+                "tip-length": 0,
+                "tip-offset": 0
+            },
+            "guid": "25980389-8a4c-4bdc-adf3-85598ce9ff85",
+            "holder": {
+                "description": "Iso-30",
+                "gaugeLength": 55,
+                "guid": "83245496-ceaf-4385-a172-0915c6eb6737",
+                "product-id": "",
+                "product-link": "",
+                "segments": [
+                    {
+                        "height": 4,
+                        "lower-diameter": 39,
+                        "upper-diameter": 50
+                    },
+                    {
+                        "height": 25,
+                        "lower-diameter": 50,
+                        "upper-diameter": 50
+                    },
+                    {
+                        "height": 4.5,
+                        "lower-diameter": 38.5,
+                        "upper-diameter": 38.5
+                    },
+                    {
+                        "height": 6.5,
+                        "lower-diameter": 50,
+                        "upper-diameter": 50
+                    },
+                    {
+                        "height": 3.5,
+                        "lower-diameter": 44,
+                        "upper-diameter": 44
+                    },
+                    {
+                        "height": 6.5,
+                        "lower-diameter": 50,
+                        "upper-diameter": 50
+                    },
+                    {
+                        "height": 5,
+                        "lower-diameter": 31,
+                        "upper-diameter": 30
+                    },
+                    {
+                        "height": 71,
+                        "lower-diameter": 30,
+                        "upper-diameter": 12
+                    }
+                ],
+                "type": "holder",
+                "unit": "millimeters",
+                "vendor": ""
+            },
+            "post-process": {
+                "break-control": false,
+                "comment": "",
+                "diameter-offset": 8,
+                "length-offset": 8,
+                "live": true,
+                "manual-tool-change": false,
+                "number": 8,
+                "turret": 0
+            },
+            "product-id": "",
+            "product-link": "https://www.artifex24.de/JSO-VHW-Profilfraeser-Pendelfraeser-fuer-Lamello-P-System-Diamantbeschichtet",
+            "shaft": {
+                "segments": [
+                    {
+                        "height": 14,
+                        "lower-diameter": 7,
+                        "upper-diameter": 10
+                    }
+                ],
+                "type": "shaft"
+            },
+            "start-values": {
+                "presets": [
+                    {
+                        "description": "",
+                        "expressions": {
+                            "tool_feedCutting": "500 mmpm",
+                            "tool_spindleSpeed": "10000 rpm"
+                        },
+                        "f_n": 0.03333333333333333,
+                        "f_z": 0.025,
+                        "guid": "6a171036-9140-4cfd-bf6f-745490d35187",
+                        "material": {
+                            "category": "all",
+                            "query": "",
+                            "use-hardness": false
+                        },
+                        "n": 10000,
+                        "n_ramp": 10000,
+                        "name": "Default preset",
+                        "ramp-angle": 2,
+                        "tool-coolant": "flood",
+                        "use-stepdown": false,
+                        "use-stepover": false,
+                        "v_c": 307.8760800517997,
+                        "v_f": 500,
+                        "v_f_leadIn": 500,
+                        "v_f_leadOut": 500,
+                        "v_f_plunge": 333.3333333333333,
+                        "v_f_ramp": 333.3333333333333,
+                        "v_f_transition": 500
+                    }
+                ]
+            },
+            "type": "slot mill",
+            "unit": "millimeters",
+            "vendor": "Artifex24"
+        },
+        {
+            "BMC": "hss",
+            "GRADE": "Mill Generic",
+            "description": "Lamello Cutter",
+            "expressions": {
+                "holder_description": "'Iso-30'",
+                "tool_bodyLength": "39 mm",
+                "tool_cornerRadius": "1.5 mm",
+                "tool_description": "'Lamello Cutter'",
+                "tool_diameter": "(100,4) mm",
+                "tool_fluteLength": "7 mm",
+                "tool_number": "7",
+                "tool_numberOfFlutes": "3",
+                "tool_overallLength": "80 mm",
+                "tool_productLink": "'https://www.artifex24.de/Diamant-PKD-Nutfraeser-fuer-Lamello-P-System-1004x7x22mm-Z3-4/M5/36-Zeta'",
+                "tool_shaftDiameter": "50 mm",
+                "tool_shoulderLength": "16 mm",
+                "tool_vendor": "'Artifex24'"
+            },
+            "geometry": {
+                "CSP": false,
+                "DC": 100.4,
+                "HAND": true,
+                "LB": 39,
+                "LCF": 7,
+                "NOF": 3,
+                "NT": 1,
+                "OAL": 80,
+                "RE": 1.5,
+                "SFDM": 50,
+                "TA": 0,
+                "TP": 0,
+                "assemblyGaugeLength": 94,
+                "shoulder-diameter": 50,
+                "shoulder-length": 16,
+                "thread-profile-angle": 60,
+                "tip-diameter": 97.4,
+                "tip-length": 0,
+                "tip-offset": 0
+            },
+            "guid": "5c03096f-dfea-421e-a3aa-ac1981b730c8",
+            "holder": {
+                "description": "Iso-30",
+                "gaugeLength": 55,
+                "guid": "83245496-ceaf-4385-a172-0915c6eb6737",
+                "product-id": "",
+                "product-link": "",
+                "segments": [
+                    {
+                        "height": 4,
+                        "lower-diameter": 39,
+                        "upper-diameter": 50
+                    },
+                    {
+                        "height": 25,
+                        "lower-diameter": 50,
+                        "upper-diameter": 50
+                    },
+                    {
+                        "height": 4.5,
+                        "lower-diameter": 38.5,
+                        "upper-diameter": 38.5
+                    },
+                    {
+                        "height": 6.5,
+                        "lower-diameter": 50,
+                        "upper-diameter": 50
+                    },
+                    {
+                        "height": 3.5,
+                        "lower-diameter": 44,
+                        "upper-diameter": 44
+                    },
+                    {
+                        "height": 6.5,
+                        "lower-diameter": 50,
+                        "upper-diameter": 50
+                    },
+                    {
+                        "height": 5,
+                        "lower-diameter": 31,
+                        "upper-diameter": 30
+                    },
+                    {
+                        "height": 71,
+                        "lower-diameter": 30,
+                        "upper-diameter": 12
+                    }
+                ],
+                "type": "holder",
+                "unit": "millimeters",
+                "vendor": ""
+            },
+            "post-process": {
+                "break-control": false,
+                "comment": "",
+                "diameter-offset": 7,
+                "length-offset": 7,
+                "live": true,
+                "manual-tool-change": false,
+                "number": 7,
+                "turret": 0
+            },
+            "product-id": "",
+            "product-link": "https://www.artifex24.de/Diamant-PKD-Nutfraeser-fuer-Lamello-P-System-1004x7x22mm-Z3-4/M5/36-Zeta",
+            "shaft": {
+                "segments": [
+                    {
+                        "height": 39,
+                        "lower-diameter": 16,
+                        "upper-diameter": 16
+                    }
+                ],
+                "type": "shaft"
+            },
+            "start-values": {
+                "presets": [
+                    {
+                        "description": "",
+                        "expressions": {
+                            "tool_feedCutting": "1000 mmpm",
+                            "tool_feedPlunge": "1500 mmpm",
+                            "tool_feedRamp": "1500 mmpm",
+                            "tool_rampAngle": "35 degrees",
+                            "tool_spindleSpeed": "12000 rpm"
+                        },
+                        "f_n": 0.125,
+                        "f_z": 0.027777777777777776,
+                        "guid": "2ad1af32-abb4-4302-9151-9929d47ecac7",
+                        "material": {
+                            "category": "all",
+                            "query": "",
+                            "use-hardness": false
+                        },
+                        "n": 12000,
+                        "n_ramp": 12000,
+                        "name": "Default preset",
+                        "ramp-angle": 35,
+                        "tool-coolant": "flood",
+                        "use-stepdown": false,
+                        "use-stepover": false,
+                        "v_c": 3784.990829044983,
+                        "v_f": 1000,
+                        "v_f_leadIn": 1000,
+                        "v_f_leadOut": 1000,
+                        "v_f_plunge": 1500,
+                        "v_f_ramp": 1500,
+                        "v_f_transition": 1000
+                    }
+                ]
+            },
+            "type": "slot mill",
+            "unit": "millimeters",
+            "vendor": "Artifex24"
+        },
+        {
+            "BMC": "hss",
+            "GRADE": "generic",
+            "description": "6mm Lamello Drill",
+            "expressions": {
+                "tool_description": "'6mm Lamello Drill'",
+                "tool_productLink": "'https://www.artifex24.de/Lamello-6mm-HW-CNC-Bohrer-mit-Dachspitze-6x35/100mm-verlaengert-fuer-Gehrung'",
+                "tool_vendor": "'Artifex24'"
+            },
+            "geometry": {
+                "CSP": false,
+                "DC": 10,
+                "HAND": true,
+                "LB": 100,
+                "LCF": 80,
+                "NOF": 2,
+                "NT": 1,
+                "OAL": 130,
+                "RE": 0,
+                "SFDM": 10,
+                "SIG": 118,
+                "TP": 0,
+                "assemblyGaugeLength": 100,
+                "shoulder-length": 90,
+                "thread-profile-angle": 60,
+                "tip-diameter": 0,
+                "tip-length": 0,
+                "tip-offset": 0
+            },
+            "guid": "1c1577b6-3fc7-4d60-abf4-c1ec2445844a",
+            "post-process": {
+                "break-control": false,
+                "comment": "",
+                "diameter-offset": 1,
+                "length-offset": 1,
+                "live": true,
+                "manual-tool-change": false,
+                "number": 1,
+                "turret": 0
+            },
+            "product-id": "",
+            "product-link": "https://www.artifex24.de/Lamello-6mm-HW-CNC-Bohrer-mit-Dachspitze-6x35/100mm-verlaengert-fuer-Gehrung",
+            "start-values": {
+                "presets": [
+                    {
+                        "description": "",
+                        "f_z": 0,
+                        "guid": "d3615d8f-19f5-4218-8af2-9ba5bc696a65",
+                        "material": {
+                            "category": "all",
+                            "query": "",
+                            "use-hardness": false
+                        },
+                        "n": 5000,
+                        "name": "Default preset",
+                        "tool-coolant": "flood",
+                        "use-feed-per-revolution": false,
+                        "v_c": 157.07963267948963,
+                        "v_f": 0,
+                        "v_f_leadIn": 0,
+                        "v_f_leadOut": 0,
+                        "v_f_plunge": 1000,
+                        "v_f_ramp": 0,
+                        "v_f_retract": 1000,
+                        "v_f_transition": 0
+                    }
+                ]
+            },
+            "type": "drill",
+            "unit": "millimeters",
+            "vendor": "Artifex24"
+        }
+    ],
+    "version": 36
+}

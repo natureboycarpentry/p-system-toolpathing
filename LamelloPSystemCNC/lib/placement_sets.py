@@ -23,6 +23,7 @@ MODE_FLAT = 'flat'
 
 INPUT_SETUP = 'setup'
 INPUT_PREVIEW = 'previewEnabled'
+INPUT_ADD_EXAMPLE_TOOLS = 'addExampleTools'
 
 TAB_SETUP_TOOL = 'setupToolTab'
 TAB_SIDE = 'sideTab'
@@ -605,6 +606,7 @@ class DialogState:
         # The Setup tab is first, so it is visible when the dialog opens.
         self.visible_tab = TAB_SETUP_TOOL
         self.tool_controller = None
+        self.addin_dir = None
 
     @property
     def syncing(self):

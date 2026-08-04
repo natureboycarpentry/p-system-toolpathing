@@ -362,6 +362,37 @@ class ToolParamsController:
         for section in self._sections:
             self.refresh_fields(inputs, cam, section)
 
+    def refresh_tool_lists(self, inputs, tools, preferred_by_section=None):
+        """Rebuild Side/Flat/Drill dropdown items from the document library.
+
+        Keeps the current selection when it still exists. Otherwise prefers
+        preferred_by_section[section] when present in the new list, else the
+        first item.
+        """
+        preferred_by_section = preferred_by_section or {}
+        self._syncing = True
+        try:
+            for section in self._sections:
+                dropdown = adsk.core.DropDownCommandInput.cast(
+                    inputs.itemById(self.dropdown_id(section))
+                )
+                if not dropdown:
+                    continue
+                previous = read_dropdown(dropdown)
+                dropdown.listItems.clear()
+                for description, _tool in tools:
+                    dropdown.listItems.add(description, False, '')
+                preferred = preferred_by_section.get(section)
+                descriptions = {desc for desc, _tool in tools}
+                if previous and previous in descriptions:
+                    select_dropdown(dropdown, previous)
+                elif preferred and preferred in descriptions:
+                    select_dropdown(dropdown, preferred)
+                else:
+                    select_dropdown(dropdown, None)
+        finally:
+            self._syncing = False
+
     def _apply_field_edit(self, changed_input, inputs, cam, section, param_name):
         tool = find_tool_by_description(cam, self.selected_description(inputs, section))
         if not tool:
