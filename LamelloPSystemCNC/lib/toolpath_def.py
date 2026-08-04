@@ -154,8 +154,23 @@ def flat_point_chain(connector_type=None):
 # Slot length from cross-point to far end along +feed.
 SLOT_LENGTH_MM = 48.0
 
-# Offset applied to depth (Z0) when half tool thickness compensation is enabled.
+# Fallback depth offset (mm) when half tool thickness compensation is enabled
+# but the side cutter flute length cannot be read. Prefer half_tool_thickness_offset_mm().
 TOOL_HALF_THICKNESS_OFFSET_MM = -3.5
+
+
+def half_tool_thickness_offset_mm(flute_length_mm):
+    """Return signed depth offset: negative half of flute length (tool thickness).
+
+    Falls back to TOOL_HALF_THICKNESS_OFFSET_MM when flute length is missing/invalid.
+    """
+    try:
+        flute = float(flute_length_mm)
+    except (TypeError, ValueError):
+        return TOOL_HALF_THICKNESS_OFFSET_MM
+    if flute <= 0:
+        return TOOL_HALF_THICKNESS_OFFSET_MM
+    return -0.5 * flute
 
 # Side master path in cross-local coordinates: feed along +feed, depth relative to anchor
 # (0 = anchor plane). The T cross / wiggle centre sits at feed=0, depth=0; the far end is

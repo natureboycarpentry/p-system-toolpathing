@@ -1,5 +1,5 @@
 """
-Generate Clamex Toolpaths command handlers.
+Lamello P-System CNC Toolpath Addin command handlers.
 
 Registers the Manufacture command, wires dialog/preview handlers, and orchestrates
 Side/Flat sketch + CAM operation generation on OK.
@@ -29,6 +29,7 @@ from lib.path_geometry import (
     get_or_create_clamex_component,
     point_for_assembly,
 )
+from lib.errors import UserFacingError
 from lib.settings import save_settings
 from lib.toolpath_def import (
     cross_offset_mm,
@@ -43,19 +44,22 @@ from lib.transform import (
     transform_feed_chain,
     transform_flat_chain,
 )
-from lib.preview import draw_toolpath_preview
+from lib.preview import clear_toolpath_preview, draw_toolpath_preview
 from lib.placement_sets import MODE_FLAT, MODE_SIDE
 from commands.generate_clamex.dialog import (
     build_dialog_inputs,
     handle_input_changed,
     read_dialog_values,
+    read_preview_enabled,
     read_preview_values,
     seed_anchor_selection,
 )
 
+# CMD_ID is kept stable across releases so existing toolbar customizations keep working.
 CMD_ID = 'ClamexGenerateToolpathsCmd'
-CMD_NAME = 'Generate Clamex Toolpaths'
-CMD_DESC = 'Create Trace toolpaths at selected anchor points'
+CMD_NAME = 'Lamello P-System CNC Toolpath Addin'
+CMD_DESC = 'Generate Lamello P-System connector toolpaths at selected anchor points'
+ADDIN_TITLE = 'Lamello P-System'
 _handlers = []
 
 
@@ -96,6 +100,7 @@ def _execute_side_generation(values, setup, setup_z_axis, tool, preset, componen
                 set_data.get('flip_z', False),
                 set_data.get('tool_thickness_offset', True),
                 cross_offset_mm(set_data.get('connector_type')),
+                values.get('tool_half_thickness_offset_mm'),
             )
             _sketch, sketch_lines = create_feed_path_sketch(component, placement_name, world_points)
             geometry = geometry_for_assembly(sketch_lines, occurrence)
@@ -107,14 +112,16 @@ def _execute_side_generation(values, setup, setup_z_axis, tool, preset, componen
             if set_data.get('drill_holes'):
                 drill_jobs.append((set_data, anchor, placement_name, set_prefix))
 
-    for set_data, anchor, placement_name, set_prefix in drill_jobs:
-        drill_tool = find_tool_by_description(cam, set_data.get('drill_tool_description'))
+    drill_tool = None
+    drill_preset = None
+    if drill_jobs:
+        drill_description = values.get('drill_tool_description')
+        drill_tool = find_tool_by_description(cam, drill_description)
         if not drill_tool:
-            raise RuntimeError(
-                f'Drill tool "{set_data.get("drill_tool_description")}" was not found.'
-            )
+            raise RuntimeError(f'Drill tool "{drill_description}" was not found.')
         drill_preset = default_tool_preset(drill_tool)
 
+    for set_data, anchor, placement_name, set_prefix in drill_jobs:
         hole_point = drill_hole_world_point(
             anchor,
             set_data['reference_axis'],
@@ -222,7 +229,10 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             app = adsk.core.Application.get()
             cam = adsk.cam.CAM.cast(app.activeProduct)
             if not cam:
-                raise RuntimeError('Switch to the Manufacture workspace with an active CAM document.')
+                raise UserFacingError(
+                    'Please switch to the Manufacture workspace with an active CAM document, '
+                    'then re-run the add-in.'
+                )
 
             state = build_dialog_inputs(inputs, cam, _addin_dir())
 
@@ -241,8 +251,10 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
             on_execute = CommandExecuteHandler(state)
             cmd.execute.add(on_execute)
             _handlers.append(on_execute)
+        except UserFacingError as exc:
+            ui.messageBox(str(exc), ADDIN_TITLE)
         except Exception:
-            ui.messageBox(f'Clamex Toolpaths dialog failed:\n{traceback.format_exc()}', 'Clamex Toolpaths')
+            ui.messageBox(f'{ADDIN_TITLE} dialog failed:\n{traceback.format_exc()}', ADDIN_TITLE)
 
 
 class CommandActivateHandler(adsk.core.CommandEventHandler):
@@ -271,6 +283,9 @@ def _request_toolpath_preview(command):
 
 def _draw_toolpath_preview(inputs, state):
     app = adsk.core.Application.get()
+    if not read_preview_enabled(inputs):
+        clear_toolpath_preview(app)
+        return
     cam = adsk.cam.CAM.cast(app.activeProduct)
     values = read_preview_values(inputs, state)
     if not values:
@@ -339,7 +354,10 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
 
             cam = adsk.cam.CAM.cast(app.activeProduct)
             if not cam:
-                raise RuntimeError('Switch to the Manufacture workspace with an active CAM document.')
+                raise UserFacingError(
+                    'Please switch to the Manufacture workspace with an active CAM document, '
+                    'then re-run the add-in.'
+                )
 
             design = adsk.fusion.Design.cast(
                 app.activeDocument.products.itemByProductType('DesignProductType')
@@ -350,6 +368,9 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
             active_state = self._state.active_state()
             active_set = _active_set_or_defaults(active_state)
 
+            global_settings = {
+                'preview_enabled': read_preview_enabled(inputs),
+            }
             if values['mode'] == MODE_SIDE:
                 save_settings(
                     _addin_dir(),
@@ -362,9 +383,10 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
                         'tool_thickness_offset': active_set.get('tool_thickness_offset', True),
                         'connector_type': active_set.get('connector_type'),
                         'drill_holes': active_set.get('drill_holes', False),
-                        'drill_tool_description': active_set.get('drill_tool_description'),
+                        'drill_tool_description': values.get('drill_tool_description'),
                         'drill_clearance_mm': active_set.get('drill_clearance_mm'),
                     },
+                    global_settings=global_settings,
                 )
             else:
                 save_settings(
@@ -377,6 +399,7 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
                         'flip_z': active_set.get('flip_z', False),
                         'connector_type': active_set.get('connector_type'),
                     },
+                    global_settings=global_settings,
                 )
 
             if results['mode'] == MODE_SIDE:
@@ -391,30 +414,44 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
                     f'Created {results["traces"]} Flat Trace operation(s) '
                     f'for {results["placements"]} anchor placement(s).'
                 ]
-            ui.messageBox('\n'.join(message_parts), 'Clamex Toolpaths')
+            ui.messageBox('\n'.join(message_parts), ADDIN_TITLE)
         except RuntimeError as exc:
-            ui.messageBox(str(exc), 'Clamex Toolpaths')
+            ui.messageBox(str(exc), ADDIN_TITLE)
         except Exception:
             message = f'Failed:\n{traceback.format_exc()}'
-            app.log(f'Clamex Toolpaths {message}')
-            ui.messageBox(message, 'Clamex Toolpaths')
+            app.log(f'{ADDIN_TITLE} {message}')
+            ui.messageBox(message, ADDIN_TITLE)
 
 
-def start():
-    ui = adsk.core.Application.get().userInterface
-    cmd_def = ui.commandDefinitions.itemById(CMD_ID)
-    if not cmd_def:
-        cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_DESC, _resource_folder())
-
-    on_created = CommandCreatedHandler()
-    cmd_def.commandCreated.add(on_created)
-    _handlers.append(on_created)
-
+def _find_addins_panel(ui):
     panel = ui.allToolbarPanels.itemById('CAMScriptsAddinsPanel')
     if not panel:
         cam_ws = ui.workspaces.itemById('CAMEnvironment')
         if cam_ws:
             panel = cam_ws.toolbarPanels.itemById('CAMScriptsAddinsPanel')
+    return panel
+
+
+def start():
+    ui = adsk.core.Application.get().userInterface
+
+    # Recreate the command definition each start so a stale definition (old name,
+    # old icon, stacked commandCreated handlers) never survives a reload.
+    cmd_def = ui.commandDefinitions.itemById(CMD_ID)
+    if cmd_def:
+        panel = _find_addins_panel(ui)
+        if panel:
+            control = panel.controls.itemById(CMD_ID)
+            if control:
+                control.deleteMe()
+        cmd_def.deleteMe()
+    cmd_def = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_DESC, _resource_folder())
+
+    on_created = CommandCreatedHandler()
+    cmd_def.commandCreated.add(on_created)
+    _handlers.append(on_created)
+
+    panel = _find_addins_panel(ui)
     if panel:
         control = panel.controls.itemById(CMD_ID)
         if not control:
@@ -425,11 +462,7 @@ def stop():
     ui = adsk.core.Application.get().userInterface
     cmd_def = ui.commandDefinitions.itemById(CMD_ID)
     if cmd_def:
-        panel = ui.allToolbarPanels.itemById('CAMScriptsAddinsPanel')
-        if not panel:
-            cam_ws = ui.workspaces.itemById('CAMEnvironment')
-            if cam_ws:
-                panel = cam_ws.toolbarPanels.itemById('CAMScriptsAddinsPanel')
+        panel = _find_addins_panel(ui)
         if panel:
             control = panel.controls.itemById(CMD_ID)
             if control:

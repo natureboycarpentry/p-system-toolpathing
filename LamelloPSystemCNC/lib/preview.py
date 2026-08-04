@@ -5,6 +5,7 @@ import adsk.fusion
 
 from lib.cam_ops import find_setup_by_name, setup_wcs_z_axis
 from lib.path_geometry import (
+    CLAMEX_COMPONENT_NAME,
     PREVIEW_PLACEMENT_PREFIX,
     create_feed_path_sketch,
     create_flat_path_sketch,
@@ -58,7 +59,7 @@ def _draw_anchor_marker(component, preview_name, anchor_origin, setup_z_axis, si
     )
 
 
-def _side_world_points_for_anchor(anchor, set_data, setup_z_axis):
+def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_thickness_offset_mm=None):
     has_feed = set_data.get('reference_axis') is not None
     connector_type = set_data.get('connector_type')
     offset_mm = cross_offset_mm(connector_type)
@@ -75,6 +76,7 @@ def _side_world_points_for_anchor(anchor, set_data, setup_z_axis):
                 set_data.get('flip_z', False),
                 set_data.get('tool_thickness_offset', True),
                 offset_mm,
+                half_thickness_offset_mm,
             )
         except Exception:
             return _feed_only_world_points(
@@ -99,6 +101,19 @@ def _flat_world_points_for_anchor(anchor, set_data, setup_z_axis):
         set_data.get('flip_feed', False),
         set_data.get('flip_z', False),
     )
+
+
+def clear_toolpath_preview(app):
+    """Remove existing preview sketches without creating the toolpaths component."""
+    design = adsk.fusion.Design.cast(
+        app.activeDocument.products.itemByProductType('DesignProductType')
+    )
+    if not design:
+        return
+    for occ in design.rootComponent.occurrences:
+        if occ.component.name == CLAMEX_COMPONENT_NAME:
+            delete_preview_sketches(occ.component)
+            return
 
 
 def draw_toolpath_preview(app, values, cam):
@@ -155,7 +170,12 @@ def draw_toolpath_preview(app, values, cam):
                     drawn += 1
                     continue
 
-                world_points = _side_world_points_for_anchor(anchor, set_data, setup_z_axis)
+                world_points = _side_world_points_for_anchor(
+                    anchor,
+                    set_data,
+                    setup_z_axis,
+                    values.get('tool_half_thickness_offset_mm'),
+                )
                 if world_points:
                     create_feed_path_sketch(component, preview_name, world_points)
                 else:

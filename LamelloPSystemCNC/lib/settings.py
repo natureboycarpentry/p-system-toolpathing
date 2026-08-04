@@ -26,16 +26,22 @@ def load_settings(addin_dir):
         return {}
 
 
-def save_settings(addin_dir, setup_name=None, side_settings=None, flat_settings=None):
+def save_settings(addin_dir, setup_name=None, side_settings=None, flat_settings=None,
+                  global_settings=None):
     """
     Merge and persist command settings.
 
     side_settings / flat_settings are dicts whose keys are written as
-    side_<key> / flat_<key> in clamex_settings.json.
+    side_<key> / flat_<key> in clamex_settings.json. global_settings keys are
+    written unprefixed.
     """
     data = load_settings(addin_dir)
     if setup_name is not None:
         data['setup_name'] = setup_name
+
+    for key, value in (global_settings or {}).items():
+        if value is not None:
+            data[key] = value
 
     for prefix, bucket in ((settings_prefix('side'), side_settings), (settings_prefix('flat'), flat_settings)):
         if not bucket:

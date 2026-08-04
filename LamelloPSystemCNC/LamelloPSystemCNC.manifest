@@ -4,7 +4,7 @@
     "id": "8f3c2a1b-4d5e-6f70-8192-clamextoolpaths",
     "author": "NatureBoy Carpentry",
     "description": {
-        "": "Generate Clamex Trace toolpaths at selected anchor points."
+        "": "Lamello P-System CNC Toolpath Addin: generate P-System connector toolpaths at selected anchor points."
     },
     "version": "1.0.0",
     "runOnStartup": true,

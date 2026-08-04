@@ -20,13 +20,15 @@ MODE_SIDE = 'side'
 MODE_FLAT = 'flat'
 
 INPUT_SETUP = 'setup'
+INPUT_PREVIEW = 'previewEnabled'
 
+TAB_SETUP_TOOL = 'setupToolTab'
 TAB_SIDE = 'sideTab'
 TAB_FLAT = 'flatTab'
 
 
 class ModeInputIds:
-    """Prefixed command input IDs for one tab (side or flat)."""
+    """Prefixed command input IDs for one milling tab (side or flat)."""
 
     def __init__(self, mode):
         prefix = f'{mode}_'
@@ -39,11 +41,10 @@ class ModeInputIds:
         self.FLIP_FEED = f'{prefix}flipFeed'
         self.FLIP_Z = f'{prefix}flipZ'
         self.TOOL_THICKNESS_OFFSET = f'{prefix}toolThicknessOffset'
+        self.TOOL_THICKNESS_OFFSET_VALUE = f'{prefix}toolThicknessOffsetValue'
         self.OP_PREFIX = f'{prefix}opPrefix'
         self.DRILL_HOLES = f'{prefix}drillHoles'
-        self.DRILL_TOOL = f'{prefix}drillTool'
         self.DRILL_CLEARANCE = f'{prefix}drillClearance'
-        self.TOOL = f'{prefix}tool'
         self.ROW_LABEL_PREFIX = f'{prefix}setLabel_'
         self.ROW_SUMMARY_PREFIX = f'{prefix}setSummary_'
 
@@ -71,7 +72,6 @@ def empty_set(mode, defaults=None):
             {
                 'tool_thickness_offset': defaults.get('tool_thickness_offset', True),
                 'drill_holes': defaults.get('drill_holes', False),
-                'drill_tool_description': defaults.get('drill_tool_description'),
                 'drill_clearance_mm': defaults.get('drill_clearance_mm', DEFAULT_DRILL_CLEARANCE_MM),
             }
         )
@@ -173,8 +173,6 @@ def _set_is_valid(set_data, mode):
         reference_axis_direction(set_data['reference_axis'])
     except Exception:
         return False
-    if mode == MODE_SIDE and set_data.get('drill_holes') and not set_data.get('drill_tool_description'):
-        return False
     return True
 
 
@@ -229,9 +227,6 @@ class PlacementSetState:
                     'drill_holes': adsk.core.BoolValueCommandInput.cast(
                         inputs.itemById(self.ids.DRILL_HOLES)
                     ),
-                    'drill_tool': adsk.core.DropDownCommandInput.cast(
-                        inputs.itemById(self.ids.DRILL_TOOL)
-                    ),
                     'drill_clearance': adsk.core.StringValueCommandInput.cast(
                         inputs.itemById(self.ids.DRILL_CLEARANCE)
                     ),
@@ -276,8 +271,6 @@ class PlacementSetState:
                 set_data['tool_thickness_offset'] = detail['tool_offset'].value
             if detail['drill_holes']:
                 set_data['drill_holes'] = detail['drill_holes'].value
-            if detail['drill_tool']:
-                set_data['drill_tool_description'] = read_dropdown(detail['drill_tool'], None)
             if detail['drill_clearance']:
                 set_data['drill_clearance_mm'] = _read_clearance_mm(
                     detail['drill_clearance'],
@@ -317,8 +310,6 @@ class PlacementSetState:
                     detail['tool_offset'].value = set_data.get('tool_thickness_offset', True)
                 if detail['drill_holes']:
                     detail['drill_holes'].value = set_data.get('drill_holes', False)
-                if detail['drill_tool']:
-                    select_dropdown(detail['drill_tool'], set_data.get('drill_tool_description'))
                 if detail['drill_clearance']:
                     detail['drill_clearance'].value = str(
                         set_data.get('drill_clearance_mm', DEFAULT_DRILL_CLEARANCE_MM)
@@ -400,8 +391,6 @@ class PlacementSetState:
                     detail['tool_offset'].value = self._defaults.get('tool_thickness_offset', True)
                 if detail['drill_holes']:
                     detail['drill_holes'].value = self._defaults.get('drill_holes', False)
-                if detail['drill_tool']:
-                    select_dropdown(detail['drill_tool'], self._defaults.get('drill_tool_description'))
                 if detail['drill_clearance']:
                     detail['drill_clearance'].value = str(
                         self._defaults.get('drill_clearance_mm', DEFAULT_DRILL_CLEARANCE_MM)
@@ -449,7 +438,6 @@ class PlacementSetState:
                     {
                         'tool_thickness_offset': current.get('tool_thickness_offset', True),
                         'drill_holes': current.get('drill_holes', False),
-                        'drill_tool_description': current.get('drill_tool_description'),
                         'drill_clearance_mm': current.get(
                             'drill_clearance_mm',
                             DEFAULT_DRILL_CLEARANCE_MM,
@@ -538,18 +526,18 @@ class PlacementSetState:
     def valid_sets_from_memory(self):
         return [dict(set_data) for set_data in self.sets if _set_is_valid(set_data, self.mode)]
 
-    def required_generation_sets(self, inputs):
-        """Valid sets for the active tab after reading UI; raises if not ready."""
-        self.save_detail_from_inputs(inputs)
+    def required_generation_sets(self, inputs, sync_from_ui=True):
+        """Valid sets for the active tab after reading UI; raises if not ready.
+
+        Pass sync_from_ui=False when the tab's selection inputs are not visible
+        (another tab is active) so cleared UI does not wipe in-memory sets.
+        """
+        if sync_from_ui:
+            self.save_detail_from_inputs(inputs)
         if not self.is_consistent_from_memory():
             label = 'Side' if self.mode == MODE_SIDE else 'Flat'
-            extra = (
-                ' Sets with drill enabled also need a drill tool.'
-                if self.mode == MODE_SIDE
-                else ''
-            )
             raise RuntimeError(
-                f'Each {label} placement set needs at least one anchor point and a feed axis.{extra}'
+                f'Each {label} placement set needs at least one anchor point and a feed axis.'
             )
         sets = self.valid_sets_from_memory()
         if not sets:
@@ -557,9 +545,10 @@ class PlacementSetState:
             raise RuntimeError(f'Configure at least one valid {label} placement set.')
         return sets
 
-    def preview_sets(self, inputs):
-        self._ensure_set_from_ui_if_needed(inputs)
-        self.save_detail_from_inputs(inputs)
+    def preview_sets(self, inputs, sync_from_ui=True):
+        if sync_from_ui:
+            self._ensure_set_from_ui_if_needed(inputs)
+            self.save_detail_from_inputs(inputs)
         return [dict(set_data) for set_data in self.sets if set_data.get('anchor_points')]
 
     def seed_first_set_anchors(self, inputs, entities):
@@ -581,12 +570,15 @@ class PlacementSetState:
 
 
 class DialogState:
-    """Side + flat tab state for the command dialog."""
+    """Setup/Side/Flat tab state for the command dialog."""
 
     def __init__(self, side_state, flat_state):
         self.side_state = side_state
         self.flat_state = flat_state
         self.active_mode = MODE_SIDE
+        # The Setup tab is first, so it is visible when the dialog opens.
+        self.visible_tab = TAB_SETUP_TOOL
+        self.tool_controller = None
 
     @property
     def syncing(self):
@@ -604,6 +596,13 @@ class DialogState:
             return self.side_state
         return self.active_state()
 
+    def state_for_tab(self, tab_id):
+        if tab_id == TAB_FLAT:
+            return self.flat_state
+        if tab_id == TAB_SIDE:
+            return self.side_state
+        return None
+
     def set_active_mode_from_tab(self, input_id):
         if input_id == TAB_FLAT:
             self.active_mode = MODE_FLAT
@@ -614,6 +613,8 @@ class DialogState:
         return False
 
     def sync_active_mode_from_inputs(self, inputs):
+        """Track the visible milling tab; keeps the last milling mode when the
+        Setup tab is active."""
         side_tab = adsk.core.TabCommandInput.cast(inputs.itemById(TAB_SIDE))
         flat_tab = adsk.core.TabCommandInput.cast(inputs.itemById(TAB_FLAT))
         if side_tab and side_tab.isActive:

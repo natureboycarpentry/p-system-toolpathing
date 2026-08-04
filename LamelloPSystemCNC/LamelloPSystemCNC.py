@@ -1,5 +1,5 @@
 """
-Clamex Toolpaths Fusion 360 add-in entry point.
+Lamello P-System CNC Toolpath Addin — Fusion 360 entry point.
 
 Adds the add-in directory to sys.path, purges cached lib/commands modules on
 Stop/Run, and delegates lifecycle to commands.generate_clamex.entry.
@@ -39,7 +39,7 @@ def run(context):
     except Exception:
         app = adsk.core.Application.get()
         ui = app.userInterface
-        ui.messageBox(f'Clamex Toolpaths failed to start:\n{traceback.format_exc()}')
+        ui.messageBox(f'Lamello P-System CNC Toolpath Addin failed to start:\n{traceback.format_exc()}')
 
 
 def stop(context):
@@ -52,4 +52,4 @@ def stop(context):
     except Exception:
         app = adsk.core.Application.get()
         ui = app.userInterface
-        ui.messageBox(f'Clamex Toolpaths failed to stop:\n{traceback.format_exc()}')
+        ui.messageBox(f'Lamello P-System CNC Toolpath Addin failed to stop:\n{traceback.format_exc()}')
