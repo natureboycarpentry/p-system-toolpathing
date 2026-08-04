@@ -15,8 +15,10 @@ LamelloPSystemCNC.run()
   → purge cached lib/commands modules
   → commands.generate_clamex.entry.start()
        → register Lamello P-System CNC Toolpath Addin on CAMScriptsAddinsPanel
+         (entry imports only adsk.core — heavy libs stay deferred)
 
-CommandCreated
+CommandCreated (lazy)
+  → import commands.generate_clamex.command
   → dialog.build_dialog_inputs()      (raises UserFacingError → clean message box)
   → wire activate / inputChanged / executePreview / execute handlers
 
@@ -27,7 +29,7 @@ inputChanged / executePreview
 
 execute (OK)
   → dialog.read_dialog_values()
-  → entry._execute_generation()
+  → command._execute_generation()
        → transform_* → path_geometry.create_*_sketch → cam_ops.create_*_operation
   → settings.save_settings()
 ```
@@ -37,7 +39,8 @@ execute (OK)
 | Module | Responsibility |
 |--------|----------------|
 | `LamelloPSystemCNC.py` | Add-in bootstrap, `sys.path`, module purge on Stop/Run |
-| `commands/generate_clamex/entry.py` | Command registration, event handlers, Side/Flat generation orchestration |
+| `commands/generate_clamex/entry.py` | Lightweight command registration (`start`/`stop`) only |
+| `commands/generate_clamex/command.py` | Event handlers and Side/Flat generation (lazy-loaded on command use) |
 | `commands/generate_clamex/dialog.py` | Three-tab UI + Preview footer, read preview/generation values, route `inputChanged` |
 | `lib/placement_sets.py` | In-memory multi-set state per milling tab (`PlacementSetState`, `DialogState`) |
 | `lib/tool_params.py` | Setup-and-Tool tab tool dropdowns + editable feed/speed groups (`ToolParamsController`) |
@@ -47,7 +50,7 @@ execute (OK)
 | `lib/path_geometry.py` | Own the **Clamex Toolpaths** component; create/replace sketches |
 | `lib/cam_ops.py` | Trace/Drill creation, tool/setup listing, idempotent op replace |
 | `lib/preview.py` | Transient `__Preview__` sketches; `clear_toolpath_preview()` when Preview is off |
-| `lib/settings.py` | Load/save `clamex_settings.json` (side/flat prefixed + global keys) |
+| `lib/settings.py` | Load/save `clamex_settings.json` in per-user AppData (side/flat prefixed + global keys) |
 | `lib/units.py` | mm↔cm conversion and shared vector helpers |
 | `lib/ui_helpers.py` | Shared Fusion dropdown read/select helpers |
 
@@ -100,7 +103,7 @@ Generation runs for the **active milling tab only** when the user clicks OK (the
 
 ## Settings persistence
 
-File: `clamex_settings.json` in the add-in folder.
+File: `clamex_settings.json` under the per-user AppData folder (`~/Library/Application Support/LamelloPSystemCNC` on macOS, `%APPDATA%\LamelloPSystemCNC` on Windows). A legacy copy in the add-in folder is migrated once if present.
 
 Current shape:
 

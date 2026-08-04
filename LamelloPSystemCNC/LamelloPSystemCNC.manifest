@@ -1,7 +1,7 @@
 {
     "autodeskProduct": "Fusion360",
     "type": "addin",
-    "id": "8f3c2a1b-4d5e-6f70-8192-clamextoolpaths",
+    "id": "2046adf5-7004-4a5e-ae05-ba676d74e798",
     "author": "NatureBoy Carpentry",
     "description": {
         "": "Lamello P-System CNC Toolpath Addin: generate P-System connector toolpaths at selected anchor points."
@@ -9,5 +9,5 @@
     "version": "1.0.0",
     "runOnStartup": true,
     "supportedOS": "windows|mac",
-    "editEnabled": true
+    "editEnabled": false
 }

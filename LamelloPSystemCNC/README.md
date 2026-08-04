@@ -4,10 +4,16 @@ Generate **Trace** (and optional **Drill**) CAM operations for Lamello P-System 
 
 ## Install
 
+**App Store:** use the Autodesk installer from the Design and Make Marketplace. Then start Fusion; if needed, open **Utilities → Add-Ins**, select **LamelloPSystemCNC**, and click **Run**.
+
+**Manual / development:**
+
 1. Copy or symlink the `LamelloPSystemCNC` folder into your Fusion add-ins directory:
    - **macOS:** `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns/`
    - **Windows:** `%appdata%\Autodesk\Autodesk Fusion 360\API\AddIns\`
 2. In Fusion, open **Utilities → Add-Ins**, find **LamelloPSystemCNC**, and click **Run**.
+
+To rebuild the App Store `.bundle` package: `python3 scripts/build_store_bundle.py` (output under `dist/`).
 
 If you previously installed the add-in as **ClamexToolpaths**, remove or unlink that folder first — this is the same add-in renamed for shipping.
 
