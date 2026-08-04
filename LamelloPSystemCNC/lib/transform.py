@@ -78,12 +78,14 @@ def _direction_from_linear_edge(edge):
 
 
 def _direction_from_sketch_line(sketch_line):
-    line = adsk.core.Line3D.cast(sketch_line.geometry)
+    # SketchLine.geometry is sketch-local; worldGeometry is root/assembly space
+    # and must be used so feed matches the visible selection on rotated planes.
+    line = adsk.core.Line3D.cast(sketch_line.worldGeometry)
     if line:
         return _direction_from_line3d(line)
 
-    start = sketch_line.startSketchPoint.geometry
-    end = sketch_line.endSketchPoint.geometry
+    start = sketch_line.startSketchPoint.worldGeometry
+    end = sketch_line.endSketchPoint.worldGeometry
     return _direction_from_points(start, end)
 
 

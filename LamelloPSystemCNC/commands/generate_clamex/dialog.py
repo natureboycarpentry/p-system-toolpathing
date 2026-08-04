@@ -49,6 +49,7 @@ _REFERENCE_AXIS_FILTERS = (
     'LinearEdges',
     'SketchLines',
     'ConstructionLines',
+    'ConstructionAxes',
 )
 
 _ANCHOR_POINT_FILTERS = (
@@ -198,12 +199,13 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
         'Select a linear edge, sketch line, or construction line/axis for slot direction',
     )
     axis_sel.tooltip = (
-        'Linear edge, sketch line, or construction line that sets the machining '
+        'Linear edge, sketch line, or construction line/axis that sets the machining '
         'direction along the connector. Use Flip feed to reverse it.'
     )
     for filter_name in _REFERENCE_AXIS_FILTERS:
         axis_sel.addSelectionFilter(filter_name)
-    axis_sel.setSelectionLimits(0, 0)
+    # At most one feed axis; empty allowed while editing a set.
+    axis_sel.setSelectionLimits(0, 1)
 
     connector_dropdown = parent_inputs.addDropDownCommandInput(
         ids.CONNECTOR_TYPE,
