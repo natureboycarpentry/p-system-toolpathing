@@ -3,7 +3,7 @@ TemporaryBRep tool solids for cut preview.
 
 Builds disc/cylinder samples from selected CAM tool dimensions and placement
 centerlines. Solids are created in world centimetres for later BaseFeature
-insert + Combine Cut.
+insert + Combine Cut. Missing library dims skip the solid (no invented sizes).
 """
 
 import adsk.core
@@ -12,12 +12,7 @@ import adsk.fusion
 from lib.toolpath_def import feed_point_chain
 from lib.units import mm_to_cm, offset_point
 
-# Fallbacks when tool library dims are missing (Clamex-typical side disc).
-_DEFAULT_SIDE_DIAMETER_MM = 100.0
-_DEFAULT_SIDE_THICKNESS_MM = 7.0
-_DEFAULT_FLAT_DIAMETER_MM = 8.0
-_DEFAULT_FLAT_FLUTE_MM = 20.0
-_DEFAULT_DRILL_DIAMETER_MM = 6.0
+# Preview-only drill length into stock when into_mm is not supplied.
 _DEFAULT_DRILL_INTO_MM = 5.0
 
 
@@ -86,19 +81,24 @@ def drill_cylinder_at_point(center, depth_axis, diameter_mm, clearance_mm, into_
 
 
 def resolve_side_dims(diameter_mm, thickness_mm):
-    dia = diameter_mm if diameter_mm and diameter_mm > 0 else _DEFAULT_SIDE_DIAMETER_MM
-    thick = thickness_mm if thickness_mm and thickness_mm > 0 else _DEFAULT_SIDE_THICKNESS_MM
-    return dia, thick
+    """Return (dia, thick) or (None, None) when library dims are missing."""
+    if not diameter_mm or diameter_mm <= 0 or not thickness_mm or thickness_mm <= 0:
+        return None, None
+    return diameter_mm, thickness_mm
 
 
 def resolve_flat_dims(diameter_mm, flute_mm):
-    dia = diameter_mm if diameter_mm and diameter_mm > 0 else _DEFAULT_FLAT_DIAMETER_MM
-    flute = flute_mm if flute_mm and flute_mm > 0 else _DEFAULT_FLAT_FLUTE_MM
-    return dia, flute
+    """Return (dia, flute) or (None, None) when library dims are missing."""
+    if not diameter_mm or diameter_mm <= 0 or not flute_mm or flute_mm <= 0:
+        return None, None
+    return diameter_mm, flute_mm
 
 
 def resolve_drill_dims(diameter_mm):
-    return diameter_mm if diameter_mm and diameter_mm > 0 else _DEFAULT_DRILL_DIAMETER_MM
+    """Return diameter or None when the library dim is missing."""
+    if not diameter_mm or diameter_mm <= 0:
+        return None
+    return diameter_mm
 
 
 def build_side_tool_body(world_points, feed_axis, depth_axis, diameter_mm, thickness_mm):
@@ -106,6 +106,8 @@ def build_side_tool_body(world_points, feed_axis, depth_axis, diameter_mm, thick
     if not world_points:
         return None
     dia, thick = resolve_side_dims(diameter_mm, thickness_mm)
+    if dia is None:
+        return None
 
     # Prefer the FEED-chain index of (feed=0, depth=0) — the T cross centre.
     local = feed_point_chain()
@@ -127,10 +129,14 @@ def build_flat_tool_body(world_points, depth_axis, diameter_mm, flute_mm):
     if not world_points:
         return None
     dia, flute = resolve_flat_dims(diameter_mm, flute_mm)
+    if dia is None:
+        return None
     return flat_cutter_at_point(world_points[-1], depth_axis, dia, flute)
 
 
 def build_drill_tool_body(hole_point, depth_axis, diameter_mm, clearance_mm):
     """Single drill cylinder at the tightening-hole point."""
     dia = resolve_drill_dims(diameter_mm)
+    if dia is None:
+        return None
     return drill_cylinder_at_point(hole_point, depth_axis, dia, clearance_mm)

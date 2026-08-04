@@ -52,7 +52,7 @@ The command **Lamello P-System CNC Toolpath Addin** appears under **Manufacture 
 ### Side (per anchor)
 
 1. **Feed** — selected feed axis (optionally flipped).
-2. **Cross-point** — anchor + connector offset along feed (**36.2 mm** P14, **40.2 mm** P10).
+2. **Cross-point** — anchor + `((tool diameter / 2) − cut depth)` along feed (cut depth is **14 mm** for P14, **10 mm** for P10; diameter from the selected side tool).
 3. **Depth** — setup WCS Z (optionally flipped); Z0 at anchor plane.
 4. **Drill hole** (optional) — anchor − feed × offset (**7.5 mm** P14, **5.5 mm** P10).
 

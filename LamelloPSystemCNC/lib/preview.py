@@ -3,7 +3,7 @@
 import adsk.core
 import adsk.fusion
 
-from lib.cam_ops import find_setup_by_name, setup_wcs_z_axis
+from lib.cam_ops import find_setup_by_name, setup_wcs_z_axis, tool_diameter_mm
 from lib.path_geometry import (
     CLAMEX_COMPONENT_NAME,
     PREVIEW_PLACEMENT_PREFIX,
@@ -35,19 +35,21 @@ _DEFAULT_Z_HINT = adsk.core.Vector3D.create(0, 0, 1)
 _DEFAULT_X_HINT = adsk.core.Vector3D.create(1, 0, 0)
 
 
-def _feed_only_world_points(anchor, feed_entity, flip_feed, connector_type):
+def _feed_only_world_points(anchor, feed_entity, flip_feed, connector_type, tool_diameter):
     """
     Simplified side preview when full transform_feed_chain fails.
 
     Used when depth-axis resolution is incomplete during live preview; draws a
     coarse feed-axis polyline instead of the full T-slot wiggle.
     """
+    if not tool_diameter or tool_diameter <= 0:
+        return None
     anchor_origin = placement_anchor_point(anchor)
     feed_axis = reference_axis_direction(feed_entity)
     if flip_feed:
         feed_axis = negate_vector(feed_axis)
 
-    offset_cm = mm_to_cm(cross_offset_mm(connector_type))
+    offset_cm = mm_to_cm(cross_offset_mm(connector_type, tool_diameter))
     cross = offset_point(anchor_origin, feed_axis, offset_cm)
     far_end = offset_point(cross, feed_axis, mm_to_cm(SLOT_LENGTH_MM))
     return [far_end, cross, anchor_origin, cross, far_end]
@@ -66,14 +68,22 @@ def _draw_anchor_marker(component, preview_name, anchor_origin, setup_z_axis, si
     )
 
 
-def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_flute_mm=None):
+def _side_world_points_for_anchor(
+    anchor,
+    set_data,
+    setup_z_axis,
+    half_flute_mm=None,
+    tool_diameter=None,
+):
     has_feed = set_data.get('reference_axis') is not None
     connector_type = set_data.get('connector_type')
-    offset_mm = cross_offset_mm(connector_type)
+    if not tool_diameter or tool_diameter <= 0:
+        return None
     z_axis = setup_z_axis or _DEFAULT_Z_HINT
 
     if has_feed:
         try:
+            offset_mm = cross_offset_mm(connector_type, tool_diameter)
             return transform_feed_chain(
                 anchor,
                 feed_point_chain(),
@@ -81,8 +91,8 @@ def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_flute_mm=
                 z_axis,
                 set_data.get('flip_feed', False),
                 set_data.get('flip_z', False),
-                set_data.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
                 offset_mm,
+                set_data.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
                 half_flute_mm,
             )
         except Exception:
@@ -91,6 +101,7 @@ def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_flute_mm=
                 set_data['reference_axis'],
                 set_data.get('flip_feed', False),
                 connector_type,
+                tool_diameter,
             )
 
     return None
@@ -175,6 +186,12 @@ def draw_toolpath_preview(app, values, cam):
 
     delete_preview_sketches(component)
 
+    side_diameter = None
+    if mode == MODE_SIDE:
+        side_tool = values.get('side_tool')
+        if side_tool:
+            side_diameter = tool_diameter_mm(side_tool)
+
     drawn = 0
     preview_index = 0
     for set_data in placement_sets:
@@ -205,6 +222,7 @@ def draw_toolpath_preview(app, values, cam):
                     set_data,
                     setup_z_axis,
                     values.get('side_half_flute_mm'),
+                    side_diameter,
                 )
                 if world_points:
                     create_feed_path_sketch(component, preview_name, world_points)

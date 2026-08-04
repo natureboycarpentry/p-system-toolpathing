@@ -15,9 +15,10 @@ class MoveType(Enum):
 
 DEFAULT_CONNECTOR_TYPE = 'P14'
 
-CONNECTOR_CROSS_OFFSET_MM = {
-    'P14': 36.2,
-    'P10': 40.2,
+# Side cut depth into the face (mm). The "14" / "10" in P14 / P10.
+CONNECTOR_CUT_DEPTH_MM = {
+    'P14': 14.0,
+    'P10': 10.0,
 }
 
 CONNECTOR_HOLE_OFFSET_MM = {
@@ -28,10 +29,27 @@ CONNECTOR_HOLE_OFFSET_MM = {
 DEFAULT_DRILL_CLEARANCE_MM = 10.0
 
 
-def cross_offset_mm(connector_type=None):
-    """Return cross-point offset for the given connector type."""
+def cut_depth_mm(connector_type=None):
+    """Return side cut depth (mm) for the connector type (P14→14, P10→10)."""
     key = connector_type or DEFAULT_CONNECTOR_TYPE
-    return CONNECTOR_CROSS_OFFSET_MM.get(key, CONNECTOR_CROSS_OFFSET_MM[DEFAULT_CONNECTOR_TYPE])
+    return CONNECTOR_CUT_DEPTH_MM.get(key, CONNECTOR_CUT_DEPTH_MM[DEFAULT_CONNECTOR_TYPE])
+
+
+def cross_offset_mm(connector_type, tool_diameter_mm):
+    """Return cross-point offset: (tool_diameter / 2) − cut_depth.
+
+    Example: Ø100.4, P14 → 50.2 − 14 = 36.2 mm.
+    Requires a positive tool diameter from the Fusion tool library.
+    """
+    try:
+        diameter = float(tool_diameter_mm)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            'tool_diameter_mm is required to derive cross-point offset'
+        ) from exc
+    if diameter <= 0:
+        raise ValueError('tool_diameter_mm must be positive')
+    return (diameter * 0.5) - cut_depth_mm(connector_type)
 
 
 def hole_offset_mm(connector_type=None):
@@ -60,10 +78,6 @@ CONNECTOR_FLAT_HALF_EXTENT_MM = {
     'P10': 31.5,
 }
 
-CONNECTOR_FLAT_MAX_DEPTH_MM = {
-    'P14': 14.0,
-    'P10': 10.0,
-}
 
 # Top-face cavity profile digitized from p14Topface G-code (feed mm, depth mm).
 # Depth is negative into the part; anchor sits at feed=0 on the surface (depth=0).
@@ -135,9 +149,8 @@ def flat_half_extent_mm(connector_type=None):
 
 
 def flat_max_depth_mm(connector_type=None):
-    """Return the maximum flat cavity depth at centre for the connector type."""
-    key = connector_type or DEFAULT_CONNECTOR_TYPE
-    return CONNECTOR_FLAT_MAX_DEPTH_MM.get(key, CONNECTOR_FLAT_MAX_DEPTH_MM[DEFAULT_CONNECTOR_TYPE])
+    """Return the maximum flat cavity depth at centre (same as side cut depth)."""
+    return cut_depth_mm(connector_type)
 
 
 def flat_point_chain(connector_type=None):
@@ -165,21 +178,15 @@ CUTTER_Z_REFERENCE_OPTIONS = (
     CUTTER_Z_FLUTE_BOTTOM,
 )
 
-# Fallback half-flute magnitude (mm) when the side cutter flute length cannot be read.
-TOOL_HALF_FLUTE_MM = 3.5
-
 
 def half_flute_mm(flute_length_mm):
-    """Return absolute half flute length in mm.
-
-    Falls back to TOOL_HALF_FLUTE_MM when flute length is missing/invalid.
-    """
+    """Return absolute half flute length in mm, or None if missing/invalid."""
     try:
         flute = float(flute_length_mm)
     except (TypeError, ValueError):
-        return TOOL_HALF_FLUTE_MM
+        return None
     if flute <= 0:
-        return TOOL_HALF_FLUTE_MM
+        return None
     return 0.5 * flute
 
 
@@ -188,18 +195,27 @@ def cutter_z_depth_offset_mm(reference, flute_length_mm=None, half_flute=None):
 
     Flute Top → +half, Flute Centre → 0, Flute Bottom → −half.
     Pass flute_length_mm or a precomputed half_flute magnitude.
+    Flute Top/Bottom require a readable flute length; Centre does not.
     """
     if half_flute is not None:
         try:
             half = abs(float(half_flute))
         except (TypeError, ValueError):
-            half = TOOL_HALF_FLUTE_MM
+            half = None
     else:
         half = half_flute_mm(flute_length_mm)
 
     if reference == CUTTER_Z_FLUTE_TOP:
+        if half is None:
+            raise ValueError(
+                f'Cutter Z "{CUTTER_Z_FLUTE_TOP}" requires a readable side-tool flute length.'
+            )
         return half
     if reference == CUTTER_Z_FLUTE_BOTTOM:
+        if half is None:
+            raise ValueError(
+                f'Cutter Z "{CUTTER_Z_FLUTE_BOTTOM}" requires a readable side-tool flute length.'
+            )
         return -half
     return 0.0
 
@@ -217,6 +233,10 @@ def migrate_cutter_z_reference(value):
         return value
     return DEFAULT_CUTTER_Z_REFERENCE
 
+# T-slot wiggle at the cross: ±WIGGLE_DEPTH_MM then settle slightly below centre.
+WIGGLE_DEPTH_MM = 1.4
+WIGGLE_SETTLE_MM = -0.05
+
 # Side master path in cross-local coordinates: feed along +feed, depth relative to anchor
 # (0 = anchor plane). The T cross / wiggle centre sits at feed=0, depth=0; the far end is
 # at feed=SLOT_LENGTH_MM. Depth=0 is the anchor plane, not a legacy pocket depth offset.
@@ -224,9 +244,9 @@ MASTER_PATH_MM = [
     (MoveType.RAPID, SLOT_LENGTH_MM, 0.0, 0.0),
     (MoveType.FEED, SLOT_LENGTH_MM, 0.0, 0.0),
     (MoveType.FEED, 0.0, 0.0, 0.0),
-    (MoveType.FEED, 0.0, 0.0, 1.4),
-    (MoveType.FEED, 0.0, 0.0, -1.4),
-    (MoveType.FEED, 0.0, 0.0, -0.05),
+    (MoveType.FEED, 0.0, 0.0, WIGGLE_DEPTH_MM),
+    (MoveType.FEED, 0.0, 0.0, -WIGGLE_DEPTH_MM),
+    (MoveType.FEED, 0.0, 0.0, WIGGLE_SETTLE_MM),
     (MoveType.FEED, SLOT_LENGTH_MM, 0.0, 0.0),
     (MoveType.RAPID, SLOT_LENGTH_MM, 0.0, 0.0),
 ]

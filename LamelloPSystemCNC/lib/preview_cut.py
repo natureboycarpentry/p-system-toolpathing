@@ -47,19 +47,29 @@ from lib.units import mm_to_cm, negate_vector, offset_point
 _DEFAULT_Z = adsk.core.Vector3D.create(0, 0, 1)
 
 
-def _feed_only_world_points(anchor, feed_entity, flip_feed, connector_type):
+def _feed_only_world_points(anchor, feed_entity, flip_feed, connector_type, tool_diameter):
+    if not tool_diameter or tool_diameter <= 0:
+        return None
     anchor_origin = placement_anchor_point(anchor)
     feed_axis = reference_axis_direction(feed_entity)
     if flip_feed:
         feed_axis = negate_vector(feed_axis)
-    offset_cm = mm_to_cm(cross_offset_mm(connector_type))
+    offset_cm = mm_to_cm(cross_offset_mm(connector_type, tool_diameter))
     cross = offset_point(anchor_origin, feed_axis, offset_cm)
     far_end = offset_point(cross, feed_axis, mm_to_cm(SLOT_LENGTH_MM))
     return [far_end, cross, anchor_origin, cross, far_end]
 
 
-def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_flute_mm=None):
+def _side_world_points_for_anchor(
+    anchor,
+    set_data,
+    setup_z_axis,
+    half_flute_mm=None,
+    tool_diameter=None,
+):
     if not set_data.get('reference_axis'):
+        return None
+    if not tool_diameter or tool_diameter <= 0:
         return None
     connector_type = set_data.get('connector_type')
     z_axis = setup_z_axis or _DEFAULT_Z
@@ -71,8 +81,8 @@ def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_flute_mm=
             z_axis,
             set_data.get('flip_feed', False),
             set_data.get('flip_z', False),
+            cross_offset_mm(connector_type, tool_diameter),
             set_data.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
-            cross_offset_mm(connector_type),
             half_flute_mm,
         )
     except Exception:
@@ -81,6 +91,7 @@ def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_flute_mm=
             set_data['reference_axis'],
             set_data.get('flip_feed', False),
             connector_type,
+            tool_diameter,
         )
 
 
@@ -415,6 +426,7 @@ def _build_temp_tools_for_values(app, values, cam, setup_z_axis):
                     set_data,
                     setup_z_axis,
                     values.get('side_half_flute_mm'),
+                    side_dia,
                 )
                 if world_points:
                     body = build_side_tool_body(

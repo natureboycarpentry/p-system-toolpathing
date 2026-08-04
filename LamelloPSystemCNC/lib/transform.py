@@ -239,15 +239,19 @@ def transform_feed_chain(
     setup_z_axis,
     flip_feed,
     flip_z,
+    cross_offset_mm,
     cutter_z_reference=DEFAULT_CUTTER_Z_REFERENCE,
-    cross_offset_mm=36.2,
     half_flute_mm=None,
 ):
     """Transform cross-local (feed, 0, depth) points to world Point3D objects.
 
-    cutter_z_reference shifts depth by +½ / 0 / −½ side-cutter flute length
-    (Flute Top / Centre / Bottom).
+    cross_offset_mm is the derived anchor→cross distance along feed
+    ((tool_diameter/2) − cut_depth). cutter_z_reference shifts depth by
+    +½ / 0 / −½ side-cutter flute length (Flute Top / Centre / Bottom).
     """
+    if cross_offset_mm is None:
+        raise ValueError('cross_offset_mm is required')
+
     anchor_origin, feed_axis, depth_axis = resolve_placement_axes(
         anchor_entity,
         feed_entity,

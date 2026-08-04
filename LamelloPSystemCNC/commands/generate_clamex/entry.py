@@ -20,6 +20,7 @@ from lib.cam_ops import (
     list_milling_setups,
     operation_display_name,
     setup_wcs_z_axis,
+    tool_diameter_mm,
 )
 from lib.path_geometry import (
     create_drill_point_sketch,
@@ -33,6 +34,7 @@ from lib.errors import UserFacingError
 from lib.settings import save_settings
 from lib.toolpath_def import (
     DEFAULT_CUTTER_Z_REFERENCE,
+    DEFAULT_DRILL_CLEARANCE_MM,
     cross_offset_mm,
     default_flat_op_prefix,
     default_op_prefix,
@@ -86,23 +88,35 @@ def _execute_side_generation(values, setup, setup_z_axis, tool, preset, componen
     drill_jobs = []
     local_chain = feed_point_chain()
 
+    diameter = tool_diameter_mm(tool)
+    if not diameter or diameter <= 0:
+        raise RuntimeError(
+            'Side tool diameter could not be read from the tool library.'
+        )
+
+    half_flute = values.get('side_half_flute_mm')
+
     for set_data in values.get('sets') or []:
         set_prefix = set_data.get('op_prefix') or default_op_prefix(set_data.get('connector_type'))
+        offset_mm = cross_offset_mm(set_data.get('connector_type'), diameter)
 
         for anchor in set_data['anchor_points']:
             placement_count += 1
             placement_name = placement_display_name(anchor)
-            world_points = transform_feed_chain(
-                anchor,
-                local_chain,
-                set_data['reference_axis'],
-                setup_z_axis,
-                set_data.get('flip_feed', False),
-                set_data.get('flip_z', False),
-                set_data.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
-                cross_offset_mm(set_data.get('connector_type')),
-                values.get('side_half_flute_mm'),
-            )
+            try:
+                world_points = transform_feed_chain(
+                    anchor,
+                    local_chain,
+                    set_data['reference_axis'],
+                    setup_z_axis,
+                    set_data.get('flip_feed', False),
+                    set_data.get('flip_z', False),
+                    offset_mm,
+                    set_data.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
+                    half_flute,
+                )
+            except ValueError as exc:
+                raise RuntimeError(str(exc)) from exc
             _sketch, sketch_lines = create_feed_path_sketch(component, placement_name, world_points)
             geometry = geometry_for_assembly(sketch_lines, occurrence)
 
@@ -144,7 +158,7 @@ def _execute_side_generation(values, setup, setup_z_axis, tool, preset, componen
             drill_name,
             drill_tool,
             [point_entity],
-            set_data.get('drill_clearance_mm', 10.0),
+            set_data.get('drill_clearance_mm', DEFAULT_DRILL_CLEARANCE_MM),
             drill_preset,
         )
         created_drill_ops += 1
