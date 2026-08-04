@@ -61,13 +61,6 @@ _ANCHOR_POINT_FILTERS = (
     'ConstructionPoints',
 )
 
-def _format_half_thickness_display(half_offset_mm):
-    """Format the magnitude of the half-thickness offset for the grey readout."""
-    magnitude = abs(float(half_offset_mm))
-    text = f'{magnitude:.3f}'.rstrip('0').rstrip('.')
-    return f'{text} mm'
-
-
 def resolve_side_half_thickness_offset_mm(inputs, dialog_state):
     """Half side-cutter flute length as a signed depth offset (mm)."""
     controller = dialog_state.tool_controller if dialog_state else None
@@ -77,18 +70,6 @@ def resolve_side_half_thickness_offset_mm(inputs, dialog_state):
     cam = adsk.cam.CAM.cast(adsk.core.Application.get().activeProduct)
     tool = find_tool_by_description(cam, description) if cam and description else None
     return half_tool_thickness_offset_mm(tool_flute_length_mm(tool))
-
-
-def update_tool_thickness_offset_display(inputs, dialog_state):
-    """Refresh the grey half-thickness readout next to the Side offset checkbox."""
-    ids = dialog_state.side_state.ids
-    display = adsk.core.StringValueCommandInput.cast(
-        inputs.itemById(ids.TOOL_THICKNESS_OFFSET_VALUE)
-    )
-    if not display:
-        return
-    offset_mm = resolve_side_half_thickness_offset_mm(inputs, dialog_state)
-    display.value = _format_half_thickness_display(offset_mm)
 
 
 def _read_setup_name(inputs):
@@ -259,17 +240,6 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
             'Offset the path by half the side cutter flute length so the T-slot '
             'walls are cut at the correct depth.'
         )
-        # Read-only (grey) half-flute readout from the Setup tab Side tool.
-        offset_value = parent_inputs.addStringValueInput(
-            ids.TOOL_THICKNESS_OFFSET_VALUE,
-            '',
-            _format_half_thickness_display(TOOL_HALF_THICKNESS_OFFSET_MM),
-        )
-        offset_value.isReadOnly = True
-        offset_value.tooltip = (
-            'Half the flute length of the Side tool selected on the Setup tab '
-            '(applied as the depth offset when the checkbox above is on).'
-        )
 
     op_prefix = parent_inputs.addStringValueInput(
         ids.OP_PREFIX,
@@ -418,7 +388,6 @@ def build_dialog_inputs(inputs, cam, addin_dir):
     dialog_state = DialogState(side_state, flat_state)
     dialog_state.tool_controller = controller
     controller.refresh_all(inputs, cam)
-    update_tool_thickness_offset_display(inputs, dialog_state)
     activate_tab_inputs(inputs, dialog_state)
     return dialog_state
 
@@ -571,14 +540,12 @@ def handle_input_changed(changed_input, inputs, dialog_state, command):
         cam = adsk.cam.CAM.cast(adsk.core.Application.get().activeProduct)
         if cam:
             controller.handle_input_changed(changed_input, inputs, cam)
-        if input_id == controller.dropdown_id(SECTION_SIDE):
-            update_tool_thickness_offset_display(inputs, dialog_state)
-            preview_requested = True
-        elif input_id in (
+        if input_id in (
+            controller.dropdown_id(SECTION_SIDE),
             controller.dropdown_id(SECTION_FLAT),
             controller.dropdown_id(SECTION_DRILL),
         ):
-            # Tool diameter/flute drives cut-preview solids.
+            # Tool diameter/flute drives cut-preview solids / offset.
             preview_requested = True
     elif input_id == INPUT_SETUP:
         # Setup WCS drives the preview depth axis.

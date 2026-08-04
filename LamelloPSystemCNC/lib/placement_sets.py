@@ -41,7 +41,6 @@ class ModeInputIds:
         self.FLIP_FEED = f'{prefix}flipFeed'
         self.FLIP_Z = f'{prefix}flipZ'
         self.TOOL_THICKNESS_OFFSET = f'{prefix}toolThicknessOffset'
-        self.TOOL_THICKNESS_OFFSET_VALUE = f'{prefix}toolThicknessOffsetValue'
         self.OP_PREFIX = f'{prefix}opPrefix'
         self.DRILL_HOLES = f'{prefix}drillHoles'
         self.DRILL_CLEARANCE = f'{prefix}drillClearance'
@@ -123,6 +122,14 @@ def _set_single_selection(sel, entity):
             sel.addSelection(entity)
         except Exception:
             pass
+
+
+def _clamp_single_selection(sel):
+    """Keep only the last entity when Fusion ignores max=1 selection limits."""
+    if not sel or sel.selectionCount <= 1:
+        return
+    last = sel.selection(sel.selectionCount - 1).entity
+    _set_single_selection(sel, last)
 
 
 def _read_anchors(sel):
@@ -242,6 +249,7 @@ class PlacementSetState:
 
         set_data['anchor_points'] = _read_anchors(detail['anchors'])
 
+        _clamp_single_selection(detail['feed'])
         if detail['feed'] and detail['feed'].selectionCount == 1:
             set_data['reference_axis'] = detail['feed'].selection(0).entity
         else:
