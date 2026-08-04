@@ -27,6 +27,7 @@ from lib.tool_body import (
     transform_temp_body,
 )
 from lib.toolpath_def import (
+    DEFAULT_CUTTER_Z_REFERENCE,
     DEFAULT_DRILL_CLEARANCE_MM,
     SLOT_LENGTH_MM,
     cross_offset_mm,
@@ -57,7 +58,7 @@ def _feed_only_world_points(anchor, feed_entity, flip_feed, connector_type):
     return [far_end, cross, anchor_origin, cross, far_end]
 
 
-def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_thickness_offset_mm=None):
+def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_flute_mm=None):
     if not set_data.get('reference_axis'):
         return None
     connector_type = set_data.get('connector_type')
@@ -70,9 +71,9 @@ def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_thickness
             z_axis,
             set_data.get('flip_feed', False),
             set_data.get('flip_z', False),
-            set_data.get('tool_thickness_offset', True),
+            set_data.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
             cross_offset_mm(connector_type),
-            half_thickness_offset_mm,
+            half_flute_mm,
         )
     except Exception:
         return _feed_only_world_points(
@@ -379,7 +380,7 @@ def _build_temp_tools_for_values(app, values, cam, setup_z_axis):
     side_dia = tool_diameter_mm(side_tool) if side_tool else None
     side_thick = tool_flute_length_mm(side_tool) if side_tool else None
     if side_thick is None:
-        half = values.get('tool_half_thickness_offset_mm')
+        half = values.get('side_half_flute_mm')
         if half is not None:
             side_thick = abs(float(half)) * 2.0
 
@@ -413,7 +414,7 @@ def _build_temp_tools_for_values(app, values, cam, setup_z_axis):
                     anchor,
                     set_data,
                     setup_z_axis,
-                    values.get('tool_half_thickness_offset_mm'),
+                    values.get('side_half_flute_mm'),
                 )
                 if world_points:
                     body = build_side_tool_body(

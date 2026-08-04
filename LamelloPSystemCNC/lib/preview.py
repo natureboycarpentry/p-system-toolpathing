@@ -15,7 +15,13 @@ from lib.path_geometry import (
 )
 from lib.placement_sets import MODE_FLAT, MODE_SIDE
 from lib.preview_cut import draw_cut_preview
-from lib.toolpath_def import SLOT_LENGTH_MM, cross_offset_mm, feed_point_chain, flat_point_chain
+from lib.toolpath_def import (
+    DEFAULT_CUTTER_Z_REFERENCE,
+    SLOT_LENGTH_MM,
+    cross_offset_mm,
+    feed_point_chain,
+    flat_point_chain,
+)
 from lib.transform import (
     drill_hole_world_point,
     placement_anchor_point,
@@ -60,7 +66,7 @@ def _draw_anchor_marker(component, preview_name, anchor_origin, setup_z_axis, si
     )
 
 
-def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_thickness_offset_mm=None):
+def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_flute_mm=None):
     has_feed = set_data.get('reference_axis') is not None
     connector_type = set_data.get('connector_type')
     offset_mm = cross_offset_mm(connector_type)
@@ -75,9 +81,9 @@ def _side_world_points_for_anchor(anchor, set_data, setup_z_axis, half_thickness
                 z_axis,
                 set_data.get('flip_feed', False),
                 set_data.get('flip_z', False),
-                set_data.get('tool_thickness_offset', True),
+                set_data.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
                 offset_mm,
-                half_thickness_offset_mm,
+                half_flute_mm,
             )
         except Exception:
             return _feed_only_world_points(
@@ -198,7 +204,7 @@ def draw_toolpath_preview(app, values, cam):
                     anchor,
                     set_data,
                     setup_z_axis,
-                    values.get('tool_half_thickness_offset_mm'),
+                    values.get('side_half_flute_mm'),
                 )
                 if world_points:
                     create_feed_path_sketch(component, preview_name, world_points)

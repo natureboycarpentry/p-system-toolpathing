@@ -8,17 +8,20 @@ millimetre paths into world-space Point3D chains for sketch creation.
 import adsk.core
 import adsk.fusion
 
-from lib.toolpath_def import TOOL_HALF_THICKNESS_OFFSET_MM, hole_offset_mm
+from lib.toolpath_def import (
+    DEFAULT_CUTTER_Z_REFERENCE,
+    cutter_z_depth_offset_mm,
+    hole_offset_mm,
+)
 from lib.units import MM_TO_CM, negate_vector
 
 
-def _depth_offset_mm(tool_thickness_offset, tool_half_thickness_offset_mm):
-    """Resolve the Z0 depth offset when tool-thickness compensation is on."""
-    if not tool_thickness_offset:
-        return 0.0
-    if tool_half_thickness_offset_mm is None:
-        return TOOL_HALF_THICKNESS_OFFSET_MM
-    return float(tool_half_thickness_offset_mm)
+def _depth_offset_mm(cutter_z_reference, half_flute_mm):
+    """Resolve the Z0 depth offset from cutter Z reference and half flute (mm)."""
+    return cutter_z_depth_offset_mm(
+        cutter_z_reference or DEFAULT_CUTTER_Z_REFERENCE,
+        half_flute=half_flute_mm,
+    )
 
 
 def _unit_vector(vector):
@@ -236,14 +239,14 @@ def transform_feed_chain(
     setup_z_axis,
     flip_feed,
     flip_z,
-    tool_thickness_offset=False,
+    cutter_z_reference=DEFAULT_CUTTER_Z_REFERENCE,
     cross_offset_mm=36.2,
-    tool_half_thickness_offset_mm=None,
+    half_flute_mm=None,
 ):
     """Transform cross-local (feed, 0, depth) points to world Point3D objects.
 
-    When tool_thickness_offset is True, depth is shifted by
-    tool_half_thickness_offset_mm (typically −½ side-cutter flute length).
+    cutter_z_reference shifts depth by +½ / 0 / −½ side-cutter flute length
+    (Flute Top / Centre / Bottom).
     """
     anchor_origin, feed_axis, depth_axis = resolve_placement_axes(
         anchor_entity,
@@ -254,10 +257,7 @@ def transform_feed_chain(
     )
 
     cross_offset_cm = cross_offset_mm * MM_TO_CM
-    depth_z0_offset_mm = _depth_offset_mm(
-        tool_thickness_offset,
-        tool_half_thickness_offset_mm,
-    )
+    depth_z0_offset_mm = _depth_offset_mm(cutter_z_reference, half_flute_mm)
     world_points = []
     for feed_mm, _cross, depth_mm in local_points:
         feed_cm = cross_offset_cm + (feed_mm * MM_TO_CM)

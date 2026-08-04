@@ -38,10 +38,12 @@ from lib.tool_params import (
     ToolParamsController,
 )
 from lib.toolpath_def import (
+    CUTTER_Z_REFERENCE_OPTIONS,
     DEFAULT_CONNECTOR_TYPE,
+    DEFAULT_CUTTER_Z_REFERENCE,
     DEFAULT_DRILL_CLEARANCE_MM,
-    TOOL_HALF_THICKNESS_OFFSET_MM,
-    half_tool_thickness_offset_mm,
+    half_flute_mm,
+    migrate_cutter_z_reference,
 )
 from lib.ui_helpers import read_dropdown, select_dropdown
 
@@ -61,15 +63,34 @@ _ANCHOR_POINT_FILTERS = (
     'ConstructionPoints',
 )
 
-def resolve_side_half_thickness_offset_mm(inputs, dialog_state):
-    """Half side-cutter flute length as a signed depth offset (mm)."""
+def resolve_side_half_flute_mm(inputs, dialog_state):
+    """Absolute half side-cutter flute length (mm) for cutter Z offsets."""
     controller = dialog_state.tool_controller if dialog_state else None
     if not controller:
-        return TOOL_HALF_THICKNESS_OFFSET_MM
+        return half_flute_mm(None)
     description = controller.selected_description(inputs, SECTION_SIDE)
     cam = adsk.cam.CAM.cast(adsk.core.Application.get().activeProduct)
     tool = find_tool_by_description(cam, description) if cam and description else None
-    return half_tool_thickness_offset_mm(tool_flute_length_mm(tool))
+    return half_flute_mm(tool_flute_length_mm(tool))
+
+
+def _load_cutter_z_reference(saved, prefix):
+    """Resolve cutter Z reference from settings, migrating legacy bool keys."""
+    key = f'{prefix}cutter_z_reference'
+    if key in saved:
+        return migrate_cutter_z_reference(saved[key])
+    if 'cutter_z_reference' in saved:
+        return migrate_cutter_z_reference(saved['cutter_z_reference'])
+    legacy = saved.get(
+        f'{prefix}tool_thickness_offset',
+        saved.get(
+            'tool_thickness_offset',
+            saved.get('tool_half_thickness_offset'),
+        ),
+    )
+    if legacy is None:
+        return DEFAULT_CUTTER_Z_REFERENCE
+    return migrate_cutter_z_reference(legacy)
 
 
 def _read_setup_name(inputs):
@@ -104,13 +125,7 @@ def _load_set_defaults(saved, mode):
             f'{prefix}flip_z',
             saved.get('flip_z', not saved.get('depth_positive_direction', True)),
         ),
-        'tool_thickness_offset': saved.get(
-            f'{prefix}tool_thickness_offset',
-            saved.get(
-                'tool_thickness_offset',
-                saved.get('tool_half_thickness_offset', True),
-            ),
-        ),
+        'cutter_z_reference': _load_cutter_z_reference(saved, prefix),
         'connector_type': saved.get(
             f'{prefix}connector_type',
             saved.get('connector_type', DEFAULT_CONNECTOR_TYPE),
@@ -229,16 +244,21 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
     )
 
     if mode == MODE_SIDE:
-        tool_offset = parent_inputs.addBoolValueInput(
-            ids.TOOL_THICKNESS_OFFSET,
-            'Tool thickness offset',
-            True,
-            '',
-            set_defaults.get('tool_thickness_offset', True),
+        cutter_z = parent_inputs.addDropDownCommandInput(
+            ids.CUTTER_Z_REFERENCE,
+            'Cutter Z Reference',
+            adsk.core.DropDownStyles.TextListDropDownStyle,
         )
-        tool_offset.tooltip = (
-            'Offset the path by half the side cutter flute length so the T-slot '
-            'walls are cut at the correct depth.'
+        cutter_z.tooltip = (
+            'Which part of the side-cutter flute is the Z reference. '
+            'Flute Top / Bottom offset the path by ±½ flute length; '
+            'Flute Centre applies no offset.'
+        )
+        for option in CUTTER_Z_REFERENCE_OPTIONS:
+            cutter_z.listItems.add(option, False, '')
+        select_dropdown(
+            cutter_z,
+            set_defaults.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
         )
 
     op_prefix = parent_inputs.addStringValueInput(
@@ -423,7 +443,7 @@ def read_preview_values(inputs, dialog_state):
         'setup_name': setup_name,
     }
     if mode == MODE_SIDE:
-        values['tool_half_thickness_offset_mm'] = resolve_side_half_thickness_offset_mm(
+        values['side_half_flute_mm'] = resolve_side_half_flute_mm(
             inputs,
             dialog_state,
         )
@@ -484,7 +504,7 @@ def read_dialog_values(inputs, dialog_state):
         'drill_tool_description': drill_tool_description,
     }
     if mode == MODE_SIDE:
-        values['tool_half_thickness_offset_mm'] = resolve_side_half_thickness_offset_mm(
+        values['side_half_flute_mm'] = resolve_side_half_flute_mm(
             inputs,
             dialog_state,
         )

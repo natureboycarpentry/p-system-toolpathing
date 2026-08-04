@@ -10,9 +10,11 @@ import adsk.fusion
 
 from lib.toolpath_def import (
     DEFAULT_CONNECTOR_TYPE,
+    DEFAULT_CUTTER_Z_REFERENCE,
     DEFAULT_DRILL_CLEARANCE_MM,
     default_flat_op_prefix,
     default_op_prefix,
+    migrate_cutter_z_reference,
 )
 from lib.ui_helpers import read_dropdown, select_dropdown
 
@@ -40,7 +42,7 @@ class ModeInputIds:
         self.CONNECTOR_TYPE = f'{prefix}connectorType'
         self.FLIP_FEED = f'{prefix}flipFeed'
         self.FLIP_Z = f'{prefix}flipZ'
-        self.TOOL_THICKNESS_OFFSET = f'{prefix}toolThicknessOffset'
+        self.CUTTER_Z_REFERENCE = f'{prefix}cutterZReference'
         self.OP_PREFIX = f'{prefix}opPrefix'
         self.DRILL_HOLES = f'{prefix}drillHoles'
         self.DRILL_CLEARANCE = f'{prefix}drillClearance'
@@ -69,7 +71,9 @@ def empty_set(mode, defaults=None):
     if mode == MODE_SIDE:
         data.update(
             {
-                'tool_thickness_offset': defaults.get('tool_thickness_offset', True),
+                'cutter_z_reference': migrate_cutter_z_reference(
+                    defaults.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE)
+                ),
                 'drill_holes': defaults.get('drill_holes', False),
                 'drill_clearance_mm': defaults.get('drill_clearance_mm', DEFAULT_DRILL_CLEARANCE_MM),
             }
@@ -228,8 +232,8 @@ class PlacementSetState:
         if self.mode == MODE_SIDE:
             detail.update(
                 {
-                    'tool_offset': adsk.core.BoolValueCommandInput.cast(
-                        inputs.itemById(self.ids.TOOL_THICKNESS_OFFSET)
+                    'cutter_z_reference': adsk.core.DropDownCommandInput.cast(
+                        inputs.itemById(self.ids.CUTTER_Z_REFERENCE)
                     ),
                     'drill_holes': adsk.core.BoolValueCommandInput.cast(
                         inputs.itemById(self.ids.DRILL_HOLES)
@@ -275,8 +279,13 @@ class PlacementSetState:
             )
 
         if self.mode == MODE_SIDE:
-            if detail['tool_offset']:
-                set_data['tool_thickness_offset'] = detail['tool_offset'].value
+            if detail['cutter_z_reference']:
+                set_data['cutter_z_reference'] = migrate_cutter_z_reference(
+                    read_dropdown(
+                        detail['cutter_z_reference'],
+                        DEFAULT_CUTTER_Z_REFERENCE,
+                    )
+                )
             if detail['drill_holes']:
                 set_data['drill_holes'] = detail['drill_holes'].value
             if detail['drill_clearance']:
@@ -314,8 +323,11 @@ class PlacementSetState:
                 )
 
             if self.mode == MODE_SIDE:
-                if detail['tool_offset']:
-                    detail['tool_offset'].value = set_data.get('tool_thickness_offset', True)
+                if detail['cutter_z_reference']:
+                    select_dropdown(
+                        detail['cutter_z_reference'],
+                        set_data.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
+                    )
                 if detail['drill_holes']:
                     detail['drill_holes'].value = set_data.get('drill_holes', False)
                 if detail['drill_clearance']:
@@ -395,8 +407,11 @@ class PlacementSetState:
                     self._defaults.get('connector_type', DEFAULT_CONNECTOR_TYPE),
                 )
             if self.mode == MODE_SIDE:
-                if detail['tool_offset']:
-                    detail['tool_offset'].value = self._defaults.get('tool_thickness_offset', True)
+                if detail['cutter_z_reference']:
+                    select_dropdown(
+                        detail['cutter_z_reference'],
+                        self._defaults.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
+                    )
                 if detail['drill_holes']:
                     detail['drill_holes'].value = self._defaults.get('drill_holes', False)
                 if detail['drill_clearance']:
@@ -444,7 +459,10 @@ class PlacementSetState:
             if self.mode == MODE_SIDE:
                 inherit.update(
                     {
-                        'tool_thickness_offset': current.get('tool_thickness_offset', True),
+                        'cutter_z_reference': current.get(
+                            'cutter_z_reference',
+                            DEFAULT_CUTTER_Z_REFERENCE,
+                        ),
                         'drill_holes': current.get('drill_holes', False),
                         'drill_clearance_mm': current.get(
                             'drill_clearance_mm',

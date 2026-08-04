@@ -35,7 +35,7 @@ The command **Lamello P-System CNC Toolpath Addin** appears under **Manufacture 
    - **Anchor points**, **Feed axis**, **Connector type** (P14 / P10)
    - **Flip feed**, **Flip Z**
    - **Operation name prefix** — defaults to **P14 - Side** / **P10 - Side** (or `- Flat`) and follows the connector type automatically until you type a custom prefix
-   - Side only: **Tool thickness offset**, **Drill key holes**, **Clearance above anchor (mm)**
+   - Side only: **Cutter Z Reference** (Flute Top / Centre / Bottom), **Drill key holes**, **Clearance above anchor (mm)**
 
    **Preview** — a global checkbox below the tabs toggles the live preview sketches for the active milling tab (drawn under **Clamex Toolpaths**). Every input has a tooltip explaining what it does.
 

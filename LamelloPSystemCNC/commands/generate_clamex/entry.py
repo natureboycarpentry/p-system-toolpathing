@@ -32,6 +32,7 @@ from lib.path_geometry import (
 from lib.errors import UserFacingError
 from lib.settings import save_settings
 from lib.toolpath_def import (
+    DEFAULT_CUTTER_Z_REFERENCE,
     cross_offset_mm,
     default_flat_op_prefix,
     default_op_prefix,
@@ -98,9 +99,9 @@ def _execute_side_generation(values, setup, setup_z_axis, tool, preset, componen
                 setup_z_axis,
                 set_data.get('flip_feed', False),
                 set_data.get('flip_z', False),
-                set_data.get('tool_thickness_offset', True),
+                set_data.get('cutter_z_reference', DEFAULT_CUTTER_Z_REFERENCE),
                 cross_offset_mm(set_data.get('connector_type')),
-                values.get('tool_half_thickness_offset_mm'),
+                values.get('side_half_flute_mm'),
             )
             _sketch, sketch_lines = create_feed_path_sketch(component, placement_name, world_points)
             geometry = geometry_for_assembly(sketch_lines, occurrence)
@@ -381,7 +382,10 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
                         'op_prefix': active_set.get('op_prefix'),
                         'flip_feed': active_set.get('flip_feed', False),
                         'flip_z': active_set.get('flip_z', False),
-                        'tool_thickness_offset': active_set.get('tool_thickness_offset', True),
+                        'cutter_z_reference': active_set.get(
+                            'cutter_z_reference',
+                            DEFAULT_CUTTER_Z_REFERENCE,
+                        ),
                         'connector_type': active_set.get('connector_type'),
                         'drill_holes': active_set.get('drill_holes', False),
                         'drill_tool_description': values.get('drill_tool_description'),

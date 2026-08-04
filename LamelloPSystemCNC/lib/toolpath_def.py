@@ -154,23 +154,68 @@ def flat_point_chain(connector_type=None):
 # Slot length from cross-point to far end along +feed.
 SLOT_LENGTH_MM = 48.0
 
-# Fallback depth offset (mm) when half tool thickness compensation is enabled
-# but the side cutter flute length cannot be read. Prefer half_tool_thickness_offset_mm().
-TOOL_HALF_THICKNESS_OFFSET_MM = -3.5
+# Cutter Z reference: which part of the side-cutter flute is the programmed depth.
+CUTTER_Z_FLUTE_TOP = 'Flute Top'
+CUTTER_Z_FLUTE_CENTRE = 'Flute Centre'
+CUTTER_Z_FLUTE_BOTTOM = 'Flute Bottom'
+DEFAULT_CUTTER_Z_REFERENCE = CUTTER_Z_FLUTE_CENTRE
+CUTTER_Z_REFERENCE_OPTIONS = (
+    CUTTER_Z_FLUTE_TOP,
+    CUTTER_Z_FLUTE_CENTRE,
+    CUTTER_Z_FLUTE_BOTTOM,
+)
+
+# Fallback half-flute magnitude (mm) when the side cutter flute length cannot be read.
+TOOL_HALF_FLUTE_MM = 3.5
 
 
-def half_tool_thickness_offset_mm(flute_length_mm):
-    """Return signed depth offset: negative half of flute length (tool thickness).
+def half_flute_mm(flute_length_mm):
+    """Return absolute half flute length in mm.
 
-    Falls back to TOOL_HALF_THICKNESS_OFFSET_MM when flute length is missing/invalid.
+    Falls back to TOOL_HALF_FLUTE_MM when flute length is missing/invalid.
     """
     try:
         flute = float(flute_length_mm)
     except (TypeError, ValueError):
-        return TOOL_HALF_THICKNESS_OFFSET_MM
+        return TOOL_HALF_FLUTE_MM
     if flute <= 0:
-        return TOOL_HALF_THICKNESS_OFFSET_MM
-    return -0.5 * flute
+        return TOOL_HALF_FLUTE_MM
+    return 0.5 * flute
+
+
+def cutter_z_depth_offset_mm(reference, flute_length_mm=None, half_flute=None):
+    """Return depth offset (mm) for a cutter Z reference: +½, 0, or −½ flute.
+
+    Flute Top → +half, Flute Centre → 0, Flute Bottom → −half.
+    Pass flute_length_mm or a precomputed half_flute magnitude.
+    """
+    if half_flute is not None:
+        try:
+            half = abs(float(half_flute))
+        except (TypeError, ValueError):
+            half = TOOL_HALF_FLUTE_MM
+    else:
+        half = half_flute_mm(flute_length_mm)
+
+    if reference == CUTTER_Z_FLUTE_TOP:
+        return half
+    if reference == CUTTER_Z_FLUTE_BOTTOM:
+        return -half
+    return 0.0
+
+
+def migrate_cutter_z_reference(value):
+    """Normalize a saved or legacy value to a cutter Z reference label.
+
+    Legacy bool tool_thickness_offset: True → Flute Bottom (−½), False → Flute Centre (0).
+    """
+    if value is True:
+        return CUTTER_Z_FLUTE_BOTTOM
+    if value is False:
+        return CUTTER_Z_FLUTE_CENTRE
+    if isinstance(value, str) and value in CUTTER_Z_REFERENCE_OPTIONS:
+        return value
+    return DEFAULT_CUTTER_Z_REFERENCE
 
 # Side master path in cross-local coordinates: feed along +feed, depth relative to anchor
 # (0 = anchor plane). The T cross / wiggle centre sits at feed=0, depth=0; the far end is

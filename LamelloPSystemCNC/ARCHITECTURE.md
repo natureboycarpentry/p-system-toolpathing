@@ -75,7 +75,7 @@ Key behaviours:
 
 ## Side vs Flat
 
-Both milling tabs share the same dialog pattern (placement sets table, anchors, feed axis, connector type, flip feed, flip Z, op prefix). Side adds tool thickness offset and optional drill holes + clearance. Tools live on the Setup tab (the Drill tool is global, not per-set).
+Both milling tabs share the same dialog pattern (placement sets table, anchors, feed axis, connector type, flip feed, flip Z, op prefix). Side adds cutter Z reference (Flute Top / Centre / Bottom) and optional drill holes + clearance. Tools live on the Setup tab (the Drill tool is global, not per-set).
 
 | Aspect | Side | Flat |
 |--------|------|------|
@@ -112,6 +112,7 @@ Current shape:
   "side_drill_tool_description": "...",
   "side_op_prefix": "P14 - Side",
   "side_flip_feed": false,
+  "side_cutter_z_reference": "Flute Centre",
   "flat_tool_description": "...",
   "flat_flip_z": false
 }

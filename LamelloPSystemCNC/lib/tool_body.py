@@ -48,11 +48,16 @@ def side_disc_at_point(center, feed_axis, depth_axis, diameter_mm, thickness_mm)
 
     Flat faces are parallel to the board top (feed×cross plane); thickness
     is flute length along depth. feed_axis is unused (call-site compat).
+
+    Trace follows the flute tip on the path, so the disc centre is raised by
+    half thickness along depth so the tip face lands on the path point.
     """
     del feed_axis  # orientation uses depth only
     radius_cm = mm_to_cm(diameter_mm) * 0.5
     half_thick_cm = mm_to_cm(thickness_mm) * 0.5
-    return create_cylinder(center, depth_axis, radius_cm, half_thick_cm)
+    # Tip follows path; raise centre so the tip face sits on the path.
+    tip_center = offset_point(center, depth_axis, half_thick_cm)
+    return create_cylinder(tip_center, depth_axis, radius_cm, half_thick_cm)
 
 
 def flat_cutter_at_point(center, depth_axis, diameter_mm, flute_mm):
