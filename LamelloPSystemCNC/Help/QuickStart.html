@@ -30,7 +30,7 @@
     <li>Ensure at least one <strong>milling Setup</strong> exists (with WCS defined). If the document tool library is empty, the add-in offers to install bundled Lamello sample tools; you can also use <strong>Add sample tools</strong> on the Setup tab later.</li>
     <li>Run <strong>Lamello P-System CNC Toolpath Addin</strong>.</li>
     <li>On the <strong>Setup</strong> tab, choose the setup and Edge / Face / Drill tools. Expand each tool’s parameters group to edit feeds and speeds if needed.</li>
-    <li>On the <strong>Edge</strong> or <strong>Face</strong> tab, add placement sets: select anchor points, feed axis, and connector type (P14 / P10). Adjust Flip feed / Flip Z and optional Edge drill options as needed.</li>
+    <li>On the <strong>Edge</strong> tab, add placement sets: select anchor points, the planar <strong>cut-in face</strong>, and connector type (P14 / P10). On the <strong>Face</strong> tab, use a linear <strong>feed axis</strong> instead. Adjust Flip feed / Flip Z and optional Edge drill options as needed.</li>
     <li>Use <strong>Preview</strong> to inspect live preview sketches under the <code>Clamex Toolpaths</code> component.</li>
     <li>Click <strong>OK</strong> to generate Trace (and optional Drill) operations for the active milling tab only.</li>
   </ol>
@@ -48,7 +48,7 @@
     <li><strong>No CAM setups found:</strong> create a milling Setup with WCS, then re-run.</li>
     <li><strong>Command not visible:</strong> ensure the add-in is running and you are in Manufacture.</li>
     <li><strong>Preview missing:</strong> enable Preview, then check the <code>Clamex Toolpaths</code> component light bulb.</li>
-    <li><strong>Error on OK:</strong> the active tab needs at least one valid set (anchors + feed axis), plus Setup and that tab’s tool on the Setup tab.</li>
+    <li><strong>Error on OK:</strong> the active tab needs at least one valid set (anchors + cut-in face on Edge, or anchors + feed axis on Face), plus Setup and that tab’s tool on the Setup tab.</li>
   </ul>
 
   <h2>Support</h2>

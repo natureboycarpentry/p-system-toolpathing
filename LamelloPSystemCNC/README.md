@@ -39,7 +39,8 @@ The command **Lamello P-System CNC Toolpath Addin** is pinned on the **Manufactu
    **Face tab** — top-face cavity machining
 
    Each milling tab has its own **placement sets** table and detail inputs:
-   - **Anchor points**, **Feed axis**, **Connector type** (P14 / P10)
+   - **Anchor points**, **Connector type** (P14 / P10)
+   - **Edge:** **Cut-in face** (planar face being machined into); **Face:** **Feed axis** (linear edge / sketch / construction line)
    - **Flip feed**, **Flip Z**
    - **Operation name prefix** — defaults to **P14 - Edge** / **P10 - Edge** (or `- Face`) and follows the connector type automatically until you type a custom prefix
    - Edge only: **Cutter Z Reference** (Flute Top / Centre / Bottom), **Drill key holes**, **Clearance above anchor (mm)**
@@ -58,7 +59,7 @@ The command **Lamello P-System CNC Toolpath Addin** is pinned on the **Manufactu
 
 ### Edge (per anchor)
 
-1. **Feed** — selected feed axis (optionally flipped).
+1. **Feed (cut-in)** — inward normal of the selected planar face (optionally flipped).
 2. **Cross-point** — anchor + `((tool diameter / 2) − cut depth)` along feed (cut depth is **14 mm** for P14, **10 mm** for P10; diameter from the selected edge tool).
 3. **Depth** — setup WCS Z (optionally flipped); Z0 at anchor plane.
 4. **Drill hole** (optional) — anchor − feed × offset (**7.5 mm** P14, **5.5 mm** P10).
@@ -79,6 +80,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for module layout, naming conventions, se
 - **"No CAM setups found..." on launch:** Create a milling Setup (with WCS defined) in the Manufacture workspace, then re-run.
 - **Command not visible:** Ensure the add-in is **Run** and you are in **Manufacture**. Look for the pinned icon on the ADD-INS panel; if missing, open the panel overflow and enable **Pin to Toolbar**.
 - **Preview not visible:** Check the **Preview** checkbox at the bottom of the dialog, then check **Clamex Toolpaths** for `__Preview__` sketches; ensure the component light bulb is on.
-- **Error on OK:** The **active** milling tab needs at least one valid set (anchors + feed axis), and Setup and that tab's tool must be selected on the **Setup** tab. Edge generation with drill enabled also needs a Drill tool there.
-- **Toolpath in wrong place:** Select the correct tab and set row; adjust feed axis, **Flip feed**, or **Flip Z**.
+- **Error on OK:** The **active** milling tab needs at least one valid set (anchors + cut-in face on Edge, or anchors + feed axis on Face), and Setup and that tab's tool must be selected on the **Setup** tab. Edge generation with drill enabled also needs a Drill tool there.
+- **Toolpath in wrong place:** Select the correct tab and set row; adjust the cut-in face / feed axis, **Flip feed**, or **Flip Z**.
 - **Geometry not found in CAM:** Ensure the setup includes the **Clamex Toolpaths** component.

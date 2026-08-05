@@ -205,7 +205,10 @@ def _summary_text(set_data, mode):
     else:
         anchor_part = f'{anchor_count} anchors'
 
-    axis_part = 'feed set' if has_feed else 'feed pending'
+    if mode == MODE_SIDE:
+        axis_part = 'face set' if has_feed else 'face pending'
+    else:
+        axis_part = 'feed set' if has_feed else 'feed pending'
     connector = set_data.get('connector_type', DEFAULT_CONNECTOR_TYPE)
     summary = f'{anchor_part}, {connector}, {axis_part}'
     if mode == MODE_SIDE and set_data.get('drill_holes'):
@@ -602,8 +605,9 @@ class PlacementSetState:
             self.save_detail_from_inputs(inputs)
         if not self.is_consistent_from_memory():
             label = mode_display_label(self.mode)
+            ref_label = 'a cut-in face' if self.mode == MODE_SIDE else 'a feed axis'
             raise RuntimeError(
-                f'Each {label} placement set needs at least one anchor point and a feed axis.'
+                f'Each {label} placement set needs at least one anchor point and {ref_label}.'
             )
         sets = self.valid_sets_from_memory()
         if not sets:

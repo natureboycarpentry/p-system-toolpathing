@@ -69,6 +69,9 @@ _REFERENCE_AXIS_FILTERS = (
     'ConstructionLines',
 )
 
+# Edge cut-in uses the inward normal of the face being machined into.
+_CUT_IN_FACE_FILTERS = ('PlanarFaces',)
+
 _ANCHOR_POINT_FILTERS = (
     'JointOrigins',
     'SketchPoints',
@@ -184,10 +187,16 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
 
     table = parent_inputs.addTableCommandInput(ids.SETS_TABLE, 'Placement sets', 2, '1:2')
     table.maximumVisibleRows = 6
-    table.tooltip = (
-        f'Batches of anchors machined with the same feed axis and options. '
-        f'Each row is one {mode_label} placement set.'
-    )
+    if mode == MODE_SIDE:
+        table.tooltip = (
+            f'Batches of anchors machined with the same cut-in face and options. '
+            f'Each row is one {mode_label} placement set.'
+        )
+    else:
+        table.tooltip = (
+            f'Batches of anchors machined with the same feed axis and options. '
+            f'Each row is one {mode_label} placement set.'
+        )
 
     add_button = parent_inputs.addBoolValueInput(ids.SET_ADD, 'Add set', False, '', False)
     add_button.tooltip = 'Add another placement set to this tab.'
@@ -209,18 +218,31 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
         sel.addSelectionFilter(filter_name)
     sel.setSelectionLimits(0, 0)
 
-    axis_sel = parent_inputs.addSelectionInput(
-        ids.REFERENCE_AXIS,
-        'Feed axis',
-        'Select a linear edge, sketch line, or construction line for slot direction',
-    )
-    axis_sel.tooltip = (
-        'Linear edge, sketch line, or construction line that sets the machining '
-        'direction along the connector. Use Flip feed to reverse it.'
-    )
-    for filter_name in _REFERENCE_AXIS_FILTERS:
-        axis_sel.addSelectionFilter(filter_name)
-    # At most one feed axis; empty allowed while editing a set.
+    if mode == MODE_SIDE:
+        axis_sel = parent_inputs.addSelectionInput(
+            ids.REFERENCE_AXIS,
+            'Cut-in face',
+            'Select the planar face being cut into',
+        )
+        axis_sel.tooltip = (
+            'Planar face the edge cutter enters. Cut-in follows the inward face '
+            'normal (into the solid). Use Flip feed to reverse it.'
+        )
+        for filter_name in _CUT_IN_FACE_FILTERS:
+            axis_sel.addSelectionFilter(filter_name)
+    else:
+        axis_sel = parent_inputs.addSelectionInput(
+            ids.REFERENCE_AXIS,
+            'Feed axis',
+            'Select a linear edge, sketch line, or construction line for slot direction',
+        )
+        axis_sel.tooltip = (
+            'Linear edge, sketch line, or construction line that sets the machining '
+            'direction along the connector. Use Flip feed to reverse it.'
+        )
+        for filter_name in _REFERENCE_AXIS_FILTERS:
+            axis_sel.addSelectionFilter(filter_name)
+    # At most one feed / cut-in reference; empty allowed while editing a set.
     axis_sel.setSelectionLimits(0, 1)
 
     connector_dropdown = parent_inputs.addDropDownCommandInput(
@@ -247,7 +269,13 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
         '',
         set_defaults.get('flip_feed', False),
     )
-    flip_feed.tooltip = 'Reverse the machining direction along the feed axis.'
+    if mode == MODE_SIDE:
+        flip_feed.tooltip = (
+            'Reverse cut-in direction relative to the face normal '
+            '(into vs out of the solid).'
+        )
+    else:
+        flip_feed.tooltip = 'Reverse the machining direction along the feed axis.'
 
     flip_z = parent_inputs.addBoolValueInput(
         ids.FLIP_Z,

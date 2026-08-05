@@ -4,7 +4,7 @@ Developer reference for the Fusion 360 add-in. User-facing install and usage not
 
 ## Overview
 
-The add-in (folder `LamelloPSystemCNC`, formerly `ClamexToolpaths`) generates Edge and Face Lamello P-System connector CAM operations from user-selected anchor points and feed axes. Geometry is defined in connector-local millimetres, transformed into world space, written to sketches in a dedicated component, then assigned to Trace (and optional Drill) operations.
+The add-in (folder `LamelloPSystemCNC`, formerly `ClamexToolpaths`) generates Edge and Face Lamello P-System connector CAM operations from user-selected anchor points and a direction reference (Edge: planar cut-in face; Face: linear feed axis). Geometry is defined in connector-local millimetres, transformed into world space, written to sketches in a dedicated component, then assigned to Trace (and optional Drill) operations.
 
 The command id (`ClamexGenerateToolpathsCmd`) and the design component name (**Clamex Toolpaths**) are intentionally kept stable across the rename so existing documents and customizations keep working.
 
@@ -47,7 +47,7 @@ execute (OK)
 | `lib/tool_params.py` | Setup-and-Tool tab tool dropdowns + editable feed/speed groups (`ToolParamsController`) |
 | `lib/errors.py` | `UserFacingError` — precondition failures shown without a traceback |
 | `lib/toolpath_def.py` | Master connector geometry constants and local point chains (mm) |
-| `lib/transform.py` | Resolve anchor/feed/WCS axes; map local chains to world `Point3D` |
+| `lib/transform.py` | Resolve anchor/feed (face normal or axis)/WCS axes; map local chains to world `Point3D` |
 | `lib/path_geometry.py` | Own the **Clamex Toolpaths** component; create/replace sketches |
 | `lib/cam_ops.py` | Trace/Drill creation, tool/setup listing, idempotent op replace |
 | `lib/preview.py` | Transient `__Preview__` sketches; `clear_toolpath_preview()` when Preview is off |
@@ -79,10 +79,11 @@ Key behaviours:
 
 ## Edge vs Face
 
-Both milling tabs share the same dialog pattern (placement sets table, anchors, feed axis, connector type, flip feed, flip Z, op prefix). Edge adds cutter Z reference (Flute Top / Centre / Bottom) and optional drill holes + clearance. Tools live on the Setup tab (the Drill tool is global, not per-set). Internal mode ids remain `side` / `flat` for settings keys and command input ids.
+Both milling tabs share the placement-sets pattern (table, anchors, connector type, flip feed, flip Z, op prefix). **Edge** picks a **cut-in face** (inward planar-face normal for approach into the edge). **Face** picks a linear **feed axis** for cavity orientation along the top. Edge also adds cutter Z reference (Flute Top / Centre / Bottom) and optional drill holes + clearance. Tools live on the Setup tab (the Drill tool is global, not per-set). Internal mode ids remain `side` / `flat` for settings keys and command input ids; the shared set field is still `reference_axis`.
 
 | Aspect | Edge | Face |
 |--------|------|------|
+| Direction reference | Planar cut-in face (inward normal) | Linear feed axis |
 | Local path | `feed_point_chain()` T-slot wiggle | `flat_point_chain()` top-face cavity |
 | Transform | `transform_feed_chain()` | `transform_flat_chain()` |
 | Sketch prefix | `Clamex Path – {anchor}` | `Clamex Flat Path – {anchor}` |
@@ -145,12 +146,13 @@ Run after code changes in Fusion Manufacture:
 - [ ] Launch with **no** CAM setup → single-line "No CAM setups found..." message, no traceback
 - [ ] **Setup tab**: Setup + Edge/Face/Drill tool dropdowns populate; parameter groups show the selected tool's feeds/speeds
 - [ ] Edit spindle speed / cutting feedrate → value persists in the Fusion Tool Library and on newly generated ops
-- [ ] **Edge tab**: add a set, select anchors + feed axis, preview sketches appear under **Clamex Toolpaths**
+- [ ] **Edge tab**: add a set, select anchors + cut-in face, preview sketches appear under **Clamex Toolpaths**
 - [ ] Connector type P14→P10 updates the op prefix while it is a default; a custom prefix is left alone
 - [ ] **Preview** checkbox off clears preview sketches; on redraws them
 - [ ] **Edge**: OK creates Trace ops; drill enabled creates Drill ops using the global Drill tool
 - [ ] Re-run OK replaces same-named operations (idempotent regenerate)
-- [ ] **Face**: Flip feed and Flip Z affect preview and generated Trace ops
+- [ ] **Face**: select anchors + linear feed axis; Flip feed and Flip Z affect preview and generated Trace ops
+- [ ] **Edge Flip feed** reverses cut-in vs the face normal; Flip Z reverses depth vs setup WCS Z
 - [ ] Switch tabs (including Setup) and back — selections restore, preview follows the active milling tab
 - [ ] Settings persist (`setup_name`, tools, flip flags, `preview_enabled`) across command runs
 - [ ] Setup must include the **Clamex Toolpaths** component for CAM geometry assignment

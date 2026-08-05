@@ -104,14 +104,47 @@ def _direction_from_infinite_geometry(geometry):
     return None
 
 
+def _direction_from_planar_face(face, inward=True):
+    """
+    Unit normal of a planar BRepFace.
+
+    Solid-face normals point out of the material. With inward=True (Edge cut-in
+    default), the returned direction points into the solid along that normal.
+    """
+    plane = adsk.core.Plane.cast(face.geometry)
+    if plane and plane.normal and plane.normal.length > 1e-6:
+        direction = _unit_vector(plane.normal)
+    else:
+        evaluator = face.evaluator
+        success, u_min, u_max, v_min, v_max = evaluator.getParameterExtents()
+        if not success:
+            raise RuntimeError('Cut-in face must be planar.')
+        mid_u = (u_min + u_max) * 0.5
+        mid_v = (v_min + v_max) * 0.5
+        success, normal = evaluator.getNormalAtParameter(mid_u, mid_v)
+        if not success or normal.length <= 1e-6:
+            raise RuntimeError('Cut-in face must be planar.')
+        direction = _unit_vector(normal)
+
+    if inward:
+        direction = _negate_copy(direction)
+    return direction
+
+
 def reference_axis_direction(entity):
     """
-    Return a unit direction vector from a user-selected linear reference.
+    Return a unit feed / cut-in direction from a placement reference entity.
 
-    Supports linear edges, sketch lines, construction lines, and construction axes.
+    Supports:
+    - Planar faces (Edge tab): inward face normal into the solid
+    - Linear edges, sketch lines, construction lines, construction axes (Face tab)
     """
     if not entity:
-        raise RuntimeError('Select a reference axis.')
+        raise RuntimeError('Select a feed / cut-in reference.')
+
+    face = adsk.fusion.BRepFace.cast(entity)
+    if face:
+        return _direction_from_planar_face(face, inward=True)
 
     edge = adsk.fusion.BRepEdge.cast(entity)
     if edge:
@@ -133,8 +166,8 @@ def reference_axis_direction(entity):
             return direction
 
     raise RuntimeError(
-        'Select a linear edge, sketch line, construction line, or construction axis '
-        'as the reference axis.'
+        'Select a planar face (Edge), or a linear edge, sketch line, '
+        'construction line, or construction axis (Face), as the feed / cut-in reference.'
     )
 
 
@@ -217,7 +250,8 @@ def resolve_placement_axes(anchor_entity, feed_entity, setup_z_axis, flip_feed, 
     """
     Resolve feed/depth axes with depth Z0 at the anchor point.
 
-    Depth always follows the setup WCS +Z axis; flip_z reverses it.
+    feed_entity is a planar face (Edge: inward normal) or a linear reference
+    (Face). Depth always follows the setup WCS +Z axis; flip_z reverses it.
     """
     anchor_origin = placement_anchor_point(anchor_entity)
     feed_axis = reference_axis_direction(feed_entity)

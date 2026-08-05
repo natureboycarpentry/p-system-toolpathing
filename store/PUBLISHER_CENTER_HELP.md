@@ -21,7 +21,7 @@ Generate Trace (and optional Drill) CAM operations for Lamello P-System connecto
 2. Create at least one milling Setup with WCS defined. If the document tool library is empty, accept the prompt to install sample tools (or use Add sample tools on the Setup tab later).
 3. Run **Lamello P-System CNC Toolpath Addin**.
 4. On the **Setup** tab, choose the setup and Edge / Face / Drill tools.
-5. On the **Edge** or **Face** tab, add placement sets (anchors, feed axis, connector type P14/P10).
+5. On the **Edge** tab, add placement sets (anchors, cut-in face, connector type P14/P10). On the **Face** tab, use a linear feed axis instead of a cut-in face.
 6. Optionally enable **Preview**, then click **OK** to generate operations for the active milling tab.
 
 ## Support
