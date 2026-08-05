@@ -1,7 +1,7 @@
 """
 Command dialog inputs for the Lamello P-System CNC Toolpath Addin.
 
-Builds the Setup / Side / Flat tabs plus the global
+Builds the Setup / Edge / Face tabs plus the global
 Preview checkbox, reads preview/generation values, and routes inputChanged
 events to placement-set and tool-parameter state.
 """
@@ -39,6 +39,9 @@ from lib.placement_sets import (
     PlacementSetState,
     _default_op_prefix_for_mode,
     _is_anchor_entity,
+    automatic_op_prefixes,
+    migrate_op_prefix,
+    mode_display_label,
 )
 from lib.settings import load_settings, settings_prefix
 from lib.tool_params import (
@@ -126,6 +129,10 @@ def _milling_tab_visible(inputs, mode):
 def _load_set_defaults(saved, mode):
     """Map persisted settings to per-set defaults for one milling tab."""
     prefix = settings_prefix(mode)
+    connector_type = saved.get(
+        f'{prefix}connector_type',
+        saved.get('connector_type', DEFAULT_CONNECTOR_TYPE),
+    )
     return {
         'flip_feed': saved.get(
             f'{prefix}flip_feed',
@@ -136,11 +143,12 @@ def _load_set_defaults(saved, mode):
             saved.get('flip_z', not saved.get('depth_positive_direction', True)),
         ),
         'cutter_z_reference': _load_cutter_z_reference(saved, prefix),
-        'connector_type': saved.get(
-            f'{prefix}connector_type',
-            saved.get('connector_type', DEFAULT_CONNECTOR_TYPE),
+        'connector_type': connector_type,
+        'op_prefix': migrate_op_prefix(
+            mode,
+            saved.get(f'{prefix}op_prefix', saved.get('op_prefix')),
+            connector_type,
         ),
-        'op_prefix': saved.get(f'{prefix}op_prefix', saved.get('op_prefix')),
         'drill_holes': saved.get(f'{prefix}drill_holes', saved.get('drill_holes', False)),
         'drill_clearance_mm': saved.get(
             f'{prefix}drill_clearance_mm',
@@ -172,7 +180,7 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
     """Build placement-set UI inside a milling tab. Returns PlacementSetState."""
     state = PlacementSetState(mode, set_defaults)
     ids = state.ids
-    mode_label = 'Side' if mode == MODE_SIDE else 'Flat'
+    mode_label = mode_display_label(mode)
 
     table = parent_inputs.addTableCommandInput(ids.SETS_TABLE, 'Placement sets', 2, '1:2')
     table.maximumVisibleRows = 6
@@ -260,7 +268,7 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
             adsk.core.DropDownStyles.TextListDropDownStyle,
         )
         cutter_z.tooltip = (
-            'Which part of the side-cutter flute is the Z reference. '
+            'Which part of the edge-cutter flute is the Z reference. '
             'Flute Top / Bottom offset the path by ±½ flute length; '
             'Flute Centre applies no offset.'
         )
@@ -310,7 +318,7 @@ def _build_mode_inputs(parent_inputs, mode, set_defaults):
 
 
 def build_dialog_inputs(inputs, cam, addin_dir):
-    """Build the Setup / Side / Flat tabs and the Preview footer. Returns DialogState."""
+    """Build the Setup / Edge / Face tabs and the Preview footer. Returns DialogState."""
     saved = load_settings(addin_dir)
 
     setups = list_milling_setups(cam)
@@ -359,24 +367,24 @@ def build_dialog_inputs(inputs, cam, addin_dir):
     controller.build_section(
         setup_inputs,
         SECTION_SIDE,
-        'Side tool',
-        'Side tool parameters',
+        'Edge tool',
+        'Edge tool parameters',
         tools,
         side_default,
         tooltip=(
-            'Document-library tool used for Side Trace operations. '
+            'Document-library tool used for Edge Trace operations. '
             'The parameters below belong to this tool.'
         ),
     )
     controller.build_section(
         setup_inputs,
         SECTION_FLAT,
-        'Flat tool',
-        'Flat tool parameters',
+        'Face tool',
+        'Face tool parameters',
         tools,
         flat_default,
         tooltip=(
-            'Document-library tool used for Flat (top-face cavity) Trace operations. '
+            'Document-library tool used for Face (top-face cavity) Trace operations. '
             'The parameters below belong to this tool.'
         ),
     )
@@ -388,7 +396,7 @@ def build_dialog_inputs(inputs, cam, addin_dir):
         tools,
         drill_default,
         tooltip=(
-            'Document-library tool used for optional Side key-hole Drill operations. '
+            'Document-library tool used for optional Edge key-hole Drill operations. '
             'The parameters below belong to this tool.'
         ),
     )
@@ -406,9 +414,9 @@ def build_dialog_inputs(inputs, cam, addin_dir):
         'by name are skipped.'
     )
 
-    # Tabs 2 and 3: milling tabs
-    side_tab = inputs.addTabCommandInput(TAB_SIDE, 'Side')
-    flat_tab = inputs.addTabCommandInput(TAB_FLAT, 'Flat')
+    # Tabs 2 and 3: milling tabs (user-facing Edge / Face; ids remain side/flat)
+    side_tab = inputs.addTabCommandInput(TAB_SIDE, 'Edge')
+    flat_tab = inputs.addTabCommandInput(TAB_FLAT, 'Face')
 
     side_state = _build_mode_inputs(
         side_tab.children,
@@ -520,7 +528,7 @@ def read_dialog_values(inputs, dialog_state):
     )
 
     controller = dialog_state.tool_controller
-    label = 'Side' if mode == MODE_SIDE else 'Flat'
+    label = mode_display_label(mode)
     section = SECTION_SIDE if mode == MODE_SIDE else SECTION_FLAT
     tool_description = controller.selected_description(inputs, section)
     if not tool_description:
@@ -564,10 +572,7 @@ def _auto_update_op_prefix(inputs, state):
 
     new_connector = read_dropdown(connector_dropdown, DEFAULT_CONNECTOR_TYPE)
     current = (prefix_input.value or '').strip()
-    known_defaults = {
-        _default_op_prefix_for_mode(state.mode, connector)
-        for connector in ('P14', 'P10')
-    }
+    known_defaults = automatic_op_prefixes(state.mode)
     if not current or current in known_defaults:
         prefix_input.value = _default_op_prefix_for_mode(state.mode, new_connector)
 

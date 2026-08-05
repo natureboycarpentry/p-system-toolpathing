@@ -59,15 +59,15 @@ def hole_offset_mm(connector_type=None):
 
 
 def default_op_prefix(connector_type=None):
-    """Default CAM operation name prefix for a connector type (side tab)."""
+    """Default CAM operation name prefix for a connector type (Edge tab)."""
     key = connector_type or DEFAULT_CONNECTOR_TYPE
-    return f'{key} - Side'
+    return f'{key} - Edge'
 
 
 def default_flat_op_prefix(connector_type=None):
-    """Default CAM operation name prefix for flat top-face cavities."""
+    """Default CAM operation name prefix for Face (top-face cavity) ops."""
     key = connector_type or DEFAULT_CONNECTOR_TYPE
-    return f'{key} - Flat'
+    return f'{key} - Face'
 
 
 FLAT_REFERENCE_HALF_EXTENT_MM = 36.434

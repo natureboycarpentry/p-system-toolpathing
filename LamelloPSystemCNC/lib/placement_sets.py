@@ -1,8 +1,9 @@
 """
 In-memory placement set state for the multi-set command dialog.
 
-Each tab (Side/Flat) owns a PlacementSetState with a table of sets and detail
-inputs synced to in-memory dicts for preview and generation.
+Each tab (Edge/Face; internal mode ids side/flat) owns a PlacementSetState with
+a table of sets and detail inputs synced to in-memory dicts for preview and
+generation.
 """
 
 import adsk.core
@@ -20,6 +21,12 @@ from lib.ui_helpers import read_dropdown, select_dropdown
 
 MODE_SIDE = 'side'
 MODE_FLAT = 'flat'
+
+# User-facing tab labels (internal mode ids stay side/flat for settings keys).
+MODE_LABELS = {
+    MODE_SIDE: 'Edge',
+    MODE_FLAT: 'Face',
+}
 
 INPUT_SETUP = 'setup'
 INPUT_PREVIEW = 'previewEnabled'
@@ -51,10 +58,37 @@ class ModeInputIds:
         self.ROW_SUMMARY_PREFIX = f'{prefix}setSummary_'
 
 
+def mode_display_label(mode):
+    """User-facing milling-tab name (Edge / Face)."""
+    return MODE_LABELS.get(mode, 'Edge')
+
+
 def _default_op_prefix_for_mode(mode, connector_type):
     if mode == MODE_FLAT:
         return default_flat_op_prefix(connector_type)
     return default_op_prefix(connector_type)
+
+
+def automatic_op_prefixes(mode):
+    """Current and legacy automatic op-prefix strings for a milling tab."""
+    prefixes = {
+        _default_op_prefix_for_mode(mode, connector)
+        for connector in ('P14', 'P10')
+    }
+    # Pre-rename defaults (Side/Flat) so connector-type auto-update still applies.
+    legacy = 'Side' if mode == MODE_SIDE else 'Flat'
+    prefixes.update(f'{connector} - {legacy}' for connector in ('P14', 'P10'))
+    return prefixes
+
+
+def migrate_op_prefix(mode, prefix, connector_type):
+    """Rewrite legacy/automatic Side|Flat prefixes to Edge|Face defaults."""
+    if not prefix or not str(prefix).strip():
+        return None
+    current = str(prefix).strip()
+    if current in automatic_op_prefixes(mode):
+        return _default_op_prefix_for_mode(mode, connector_type)
+    return current
 
 
 def empty_set(mode, defaults=None):
@@ -67,7 +101,12 @@ def empty_set(mode, defaults=None):
         'flip_feed': defaults.get('flip_feed', False),
         'flip_z': defaults.get('flip_z', False),
         'connector_type': connector_type,
-        'op_prefix': defaults.get('op_prefix') or _default_op_prefix_for_mode(mode, connector_type),
+        'op_prefix': migrate_op_prefix(
+            mode,
+            defaults.get('op_prefix'),
+            connector_type,
+        )
+        or _default_op_prefix_for_mode(mode, connector_type),
     }
     if mode == MODE_SIDE:
         data.update(
@@ -562,13 +601,13 @@ class PlacementSetState:
         if sync_from_ui:
             self.save_detail_from_inputs(inputs)
         if not self.is_consistent_from_memory():
-            label = 'Side' if self.mode == MODE_SIDE else 'Flat'
+            label = mode_display_label(self.mode)
             raise RuntimeError(
                 f'Each {label} placement set needs at least one anchor point and a feed axis.'
             )
         sets = self.valid_sets_from_memory()
         if not sets:
-            label = 'Side' if self.mode == MODE_SIDE else 'Flat'
+            label = mode_display_label(self.mode)
             raise RuntimeError(f'Configure at least one valid {label} placement set.')
         return sets
 
@@ -597,7 +636,7 @@ class PlacementSetState:
 
 
 class DialogState:
-    """Setup/Side/Flat tab state for the command dialog."""
+    """Setup/Edge/Face tab state for the command dialog."""
 
     def __init__(self, side_state, flat_state):
         self.side_state = side_state

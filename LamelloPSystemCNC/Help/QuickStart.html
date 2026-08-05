@@ -29,8 +29,8 @@
     <li>Open a design with placement points (Joint Origins, sketch points, vertices, or construction points).</li>
     <li>Ensure at least one <strong>milling Setup</strong> exists (with WCS defined). If the document tool library is empty, the add-in offers to install bundled Lamello sample tools; you can also use <strong>Add sample tools</strong> on the Setup tab later.</li>
     <li>Run <strong>Lamello P-System CNC Toolpath Addin</strong>.</li>
-    <li>On the <strong>Setup</strong> tab, choose the setup and Side / Flat / Drill tools. Expand each tool’s parameters group to edit feeds and speeds if needed.</li>
-    <li>On the <strong>Side</strong> or <strong>Flat</strong> tab, add placement sets: select anchor points, feed axis, and connector type (P14 / P10). Adjust Flip feed / Flip Z and optional Side drill options as needed.</li>
+    <li>On the <strong>Setup</strong> tab, choose the setup and Edge / Face / Drill tools. Expand each tool’s parameters group to edit feeds and speeds if needed.</li>
+    <li>On the <strong>Edge</strong> or <strong>Face</strong> tab, add placement sets: select anchor points, feed axis, and connector type (P14 / P10). Adjust Flip feed / Flip Z and optional Edge drill options as needed.</li>
     <li>Use <strong>Preview</strong> to inspect live preview sketches under the <code>Clamex Toolpaths</code> component.</li>
     <li>Click <strong>OK</strong> to generate Trace (and optional Drill) operations for the active milling tab only.</li>
   </ol>
@@ -38,8 +38,8 @@
   <h2>What it creates</h2>
   <ul>
     <li>A root-level component named <strong>Clamex Toolpaths</strong> (stable name; re-runs replace existing geometry).</li>
-    <li><strong>Side:</strong> feed-path sketches and Trace ops; optional Drill ops for key holes.</li>
-    <li><strong>Flat:</strong> cavity-path sketches and Trace ops.</li>
+    <li><strong>Edge:</strong> feed-path sketches and Trace ops; optional Drill ops for key holes.</li>
+    <li><strong>Face:</strong> cavity-path sketches and Trace ops.</li>
   </ul>
 
   <h2>Troubleshooting</h2>

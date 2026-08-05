@@ -82,7 +82,7 @@ def _execute_side_generation(values, setup, setup_z_axis, tool, preset, componen
     diameter = tool_diameter_mm(tool)
     if not diameter or diameter <= 0:
         raise RuntimeError(
-            'Side tool diameter could not be read from the tool library.'
+            'Edge tool diameter could not be read from the tool library.'
         )
 
     half_flute = values.get('side_half_flute_mm')
@@ -410,14 +410,14 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
 
             if results['mode'] == MODE_SIDE:
                 message_parts = [
-                    f'Created {results["traces"]} Side Trace operation(s) '
+                    f'Created {results["traces"]} Edge Trace operation(s) '
                     f'for {results["placements"]} anchor placement(s).'
                 ]
                 if results['drills']:
-                    message_parts.append(f'Created {results["drills"]} Side Drill operation(s).')
+                    message_parts.append(f'Created {results["drills"]} Edge Drill operation(s).')
             else:
                 message_parts = [
-                    f'Created {results["traces"]} Flat Trace operation(s) '
+                    f'Created {results["traces"]} Face Trace operation(s) '
                     f'for {results["placements"]} anchor placement(s).'
                 ]
             ui.messageBox('\n'.join(message_parts), ADDIN_TITLE)

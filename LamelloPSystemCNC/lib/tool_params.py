@@ -363,7 +363,7 @@ class ToolParamsController:
             self.refresh_fields(inputs, cam, section)
 
     def refresh_tool_lists(self, inputs, tools, preferred_by_section=None):
-        """Rebuild Side/Flat/Drill dropdown items from the document library.
+        """Rebuild Edge/Face/Drill dropdown items from the document library.
 
         Keeps the current selection when it still exists. Otherwise prefers
         preferred_by_section[section] when present in the new list, else the
