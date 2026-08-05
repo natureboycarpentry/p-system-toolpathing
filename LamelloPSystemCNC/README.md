@@ -19,7 +19,7 @@ If you previously installed the add-in as **ClamexToolpaths**, remove or unlink 
 
 During development, use **Stop** then **Run** to reload code changes — the add-in clears cached Python modules on each cycle. If something still looks stale, delete any `__pycache__` folders inside `LamelloPSystemCNC` and Stop/Run again.
 
-The command **Lamello P-System CNC Toolpath Addin** appears under **Manufacture → ADD-INS**.
+The command **Lamello P-System CNC Toolpath Addin** is pinned on the **Manufacture → ADD-INS** toolbar (with its icon). If you unpin it, use the ADD-INS panel overflow (**…** → Pin to Toolbar) to show it again; a toolbar reset restores the pin.
 
 ## Usage
 
@@ -77,7 +77,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for module layout, naming conventions, se
 ## Troubleshooting
 
 - **"No CAM setups found..." on launch:** Create a milling Setup (with WCS defined) in the Manufacture workspace, then re-run.
-- **Command not visible:** Ensure the add-in is **Run** and you are in **Manufacture**.
+- **Command not visible:** Ensure the add-in is **Run** and you are in **Manufacture**. Look for the pinned icon on the ADD-INS panel; if missing, open the panel overflow and enable **Pin to Toolbar**.
 - **Preview not visible:** Check the **Preview** checkbox at the bottom of the dialog, then check **Clamex Toolpaths** for `__Preview__` sketches; ensure the component light bulb is on.
 - **Error on OK:** The **active** milling tab needs at least one valid set (anchors + feed axis), and Setup and that tab's tool must be selected on the **Setup** tab. Side generation with drill enabled also needs a Drill tool there.
 - **Toolpath in wrong place:** Select the correct tab and set row; adjust feed axis, **Flip feed**, or **Flip Z**.

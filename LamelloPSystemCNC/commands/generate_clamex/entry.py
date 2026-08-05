@@ -68,11 +68,17 @@ def start():
     cmd_def.commandCreated.add(on_created)
     _handlers.append(on_created)
 
+    # Pin to the Manufacture ADD-INS toolbar strip (not only the panel overflow).
+    # isPromoted mirrors "Pin to Toolbar"; isPromotedByDefault keeps it after a
+    # toolbar reset. Icons come from ./resources (16/32/64).
     panel = _find_addins_panel(ui)
     if panel:
         control = panel.controls.itemById(CMD_ID)
         if not control:
-            panel.controls.addCommand(cmd_def)
+            control = panel.controls.addCommand(cmd_def)
+        if control:
+            control.isPromotedByDefault = True
+            control.isPromoted = True
 
 
 def stop():

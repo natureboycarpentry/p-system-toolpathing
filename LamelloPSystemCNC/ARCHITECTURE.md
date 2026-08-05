@@ -15,6 +15,7 @@ LamelloPSystemCNC.run()
   → purge cached lib/commands modules
   → commands.generate_clamex.entry.start()
        → register Lamello P-System CNC Toolpath Addin on CAMScriptsAddinsPanel
+         (isPromoted + isPromotedByDefault so the icon is pinned on ADD-INS)
          (entry imports only adsk.core — heavy libs stay deferred)
 
 CommandCreated (lazy)
@@ -140,7 +141,7 @@ Keys are prefixed with `side_` or `flat_`; `setup_name` and `preview_enabled` ar
 
 Run after code changes in Fusion Manufacture:
 
-- [ ] Add-in Stop/Run succeeds; command appears under **Manufacture → ADD-INS** with the P-System profile icon and the new name
+- [ ] Add-in Stop/Run succeeds; command is pinned on **Manufacture → ADD-INS** with the P-System profile icon and the new name
 - [ ] Launch with **no** CAM setup → single-line "No CAM setups found..." message, no traceback
 - [ ] **Setup tab**: Setup + Side/Flat/Drill tool dropdowns populate; parameter groups show the selected tool's feeds/speeds
 - [ ] Edit spindle speed / cutting feedrate → value persists in the Fusion Tool Library and on newly generated ops

@@ -87,12 +87,20 @@ def install_adsk_stub() -> None:
         def __init__(self):
             self.controls = Controls()
 
+    class ToolbarControl:
+        def __init__(self):
+            self.isPromoted = False
+            self.isPromotedByDefault = False
+
+        def deleteMe(self):
+            pass
+
     class Controls:
         def itemById(self, _id):
             return None
 
         def addCommand(self, _cmd):
-            pass
+            return ToolbarControl()
 
     class Workspaces:
         def itemById(self, _id):

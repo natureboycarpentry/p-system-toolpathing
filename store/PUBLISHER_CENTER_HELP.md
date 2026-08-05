@@ -13,7 +13,7 @@ Generate Trace (and optional Drill) CAM operations for Lamello P-System connecto
 
 1. Install with the Autodesk App Store installer for Windows or Mac.
 2. Start Fusion. If needed, open **Utilities → Add-Ins**, select **LamelloPSystemCNC**, and click **Run**.
-3. Switch to **Manufacture**. The command appears under **ADD-INS**.
+3. Switch to **Manufacture**. The command is pinned on the **ADD-INS** toolbar.
 
 ## First use
 
