@@ -80,6 +80,6 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for module layout, naming conventions, se
 - **"No CAM setups found..." on launch:** Create a milling Setup (with WCS defined) in the Manufacture workspace, then re-run.
 - **Command not visible:** Ensure the add-in is **Run** and you are in **Manufacture**. Look for the pinned icon on the ADD-INS panel; if missing, open the panel overflow and enable **Pin to Toolbar**.
 - **Preview not visible:** Check the **Preview** checkbox at the bottom of the dialog, then check **Clamex Toolpaths** for `__Preview__` sketches; ensure the component light bulb is on.
-- **Error on OK:** The **active** milling tab needs at least one valid set (anchors + cut-in face on Edge, or anchors + feed axis on Face), and Setup and that tab's tool must be selected on the **Setup** tab. Edge generation with drill enabled also needs a Drill tool there.
+- **Error on OK / grey OK:** OK stays disabled until the **active** milling tab has at least one valid set (anchors + cut-in face on Edge, or anchors + feed axis on Face), and Setup and that tab's tool are selected on the **Setup** tab. Edge with drill enabled also needs a Drill tool there.
 - **Toolpath in wrong place:** Select the correct tab and set row; adjust the cut-in face / feed axis, **Flip feed**, or **Flip Z**.
 - **Geometry not found in CAM:** Ensure the setup includes the **Clamex Toolpaths** component.

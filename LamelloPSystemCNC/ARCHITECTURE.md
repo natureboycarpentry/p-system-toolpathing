@@ -21,10 +21,11 @@ LamelloPSystemCNC.run()
 CommandCreated (lazy)
   → import commands.generate_clamex.command
   → dialog.build_dialog_inputs()      (raises UserFacingError → clean message box)
-  → wire activate / inputChanged / executePreview / execute handlers
+  → wire activate / inputChanged / validateInputs / executePreview / execute handlers
 
-inputChanged / executePreview
+inputChanged / validateInputs / executePreview
   → dialog.handle_input_changed()     (tabs, sets, tool params, preview toggle)
+  → dialog.dialog_values_are_valid()  (greys OK until active tab is complete)
   → dialog.read_preview_values()
   → preview.draw_toolpath_preview()   (skipped/cleared when Preview is off)
 
@@ -76,6 +77,7 @@ Key behaviours:
 - **Tab switching:** `DialogState.visible_tab` tracks which tab is showing. Leaving a milling tab saves its detail to memory and clears its selection UI; preview and OK read from memory (`sync_from_ui=False`) while the Setup tab is visible, so cleared selection inputs never wipe state.
 - **Preview checkbox:** when off, `executePreview` clears any `__Preview__` sketches and skips drawing. The state persists in settings (`preview_enabled`).
 - **Preconditions:** missing CAM product, setups, or document tools raise `UserFacingError` during `CommandCreated`, shown as a single-line message box (no traceback). Unexpected exceptions still show the full traceback.
+- **OK validation:** `validateInputs` greys OK until the active milling tab is complete (anchors + cut-in face / feed axis, Setup, and that tab’s tool). Checks use in-memory set state so an incomplete inactive tab cannot block OK; selection inputs keep min 0. A hidden nudge input forces re-validation after tab switches. (`executeFailed` was tried to keep the dialog open on incomplete OK, but Fusion still closed it and showed a system error.)
 
 ## Edge vs Face
 
@@ -154,5 +156,6 @@ Run after code changes in Fusion Manufacture:
 - [ ] **Face**: select anchors + linear feed axis; Flip feed and Flip Z affect preview and generated Trace ops
 - [ ] **Edge Flip feed** reverses cut-in vs the face normal; Flip Z reverses depth vs setup WCS Z
 - [ ] Switch tabs (including Setup) and back — selections restore, preview follows the active milling tab
+- [ ] Incomplete sets keep OK disabled; completing anchors + cut-in face / feed axis (and Setup tools) enables OK; switching away from a valid tab to an incomplete one greys OK again
 - [ ] Settings persist (`setup_name`, tools, flip flags, `preview_enabled`) across command runs
 - [ ] Setup must include the **Clamex Toolpaths** component for CAM geometry assignment

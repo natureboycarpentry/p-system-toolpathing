@@ -595,6 +595,18 @@ class PlacementSetState:
     def valid_sets_from_memory(self):
         return [dict(set_data) for set_data in self.sets if _set_is_valid(set_data, self.mode)]
 
+    def is_ready_for_ok(self, inputs, sync_from_ui=True):
+        """True when this tab has at least one complete placement set.
+
+        Pass sync_from_ui=False when the tab's selection inputs are not visible
+        (another tab is active) so cleared UI does not wipe in-memory sets.
+        """
+        if sync_from_ui:
+            self.save_detail_from_inputs(inputs)
+        if not self.is_consistent_from_memory():
+            return False
+        return bool(self.valid_sets_from_memory())
+
     def required_generation_sets(self, inputs, sync_from_ui=True):
         """Valid sets for the active tab after reading UI; raises if not ready.
 

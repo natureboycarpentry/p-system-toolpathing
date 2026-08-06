@@ -79,6 +79,9 @@ _ANCHOR_POINT_FILTERS = (
     'ConstructionPoints',
 )
 
+# Hidden toggle flipped after tab switches so Fusion re-runs validateInputs.
+INPUT_VALIDATION_NUDGE = 'validationNudge'
+
 def resolve_side_half_flute_mm(inputs, dialog_state):
     """Absolute half side-cutter flute length (mm) for cutter Z offsets."""
     controller = dialog_state.tool_controller if dialog_state else None
@@ -168,6 +171,13 @@ def update_drill_input_visibility(inputs):
     visible = bool(drill_enabled and drill_enabled.value)
     if drill_clearance:
         drill_clearance.isVisible = visible
+
+
+def _nudge_validation(inputs):
+    """Flip a hidden input so Fusion re-evaluates areInputsValid / OK enabled."""
+    nudge = adsk.core.BoolValueCommandInput.cast(inputs.itemById(INPUT_VALIDATION_NUDGE))
+    if nudge:
+        nudge.value = not nudge.value
 
 
 def activate_tab_inputs(inputs, dialog_state, inactive_state=None):
@@ -473,6 +483,10 @@ def build_dialog_inputs(inputs, cam, addin_dir):
         'Show live preview sketches of the toolpaths while this dialog is open.'
     )
 
+    # Hidden: toggled after tab switches to force validateInputs / OK enablement.
+    nudge = inputs.addBoolValueInput(INPUT_VALIDATION_NUDGE, '', True, '', False)
+    nudge.isVisible = False
+
     update_drill_input_visibility(inputs)
 
     dialog_state = DialogState(side_state, flat_state)
@@ -488,6 +502,7 @@ def seed_anchor_selection(inputs, dialog_state):
     ids = dialog_state.active_state().ids
     detail = adsk.core.SelectionCommandInput.cast(inputs.itemById(ids.ANCHOR_POINTS))
     if detail and detail.selectionCount > 0:
+        _nudge_validation(inputs)
         return
 
     ui = adsk.core.Application.get().userInterface
@@ -498,6 +513,7 @@ def seed_anchor_selection(inputs, dialog_state):
             entities.append(entity)
 
     dialog_state.active_state().seed_first_set_anchors(inputs, entities)
+    _nudge_validation(inputs)
 
 
 def read_preview_values(inputs, dialog_state):
@@ -540,6 +556,40 @@ def read_preview_values(inputs, dialog_state):
         values['flat_tool'] = None
         values['drill_tool'] = None
     return values
+
+
+def dialog_values_are_valid(inputs, dialog_state):
+    """True when OK should be enabled for the active milling tab (memory-backed).
+
+    Selection inputs stay at minimum 0 so Fusion does not block OK from an
+    inactive tab. This check mirrors read_dialog_values without raising.
+    """
+    try:
+        dialog_state.sync_active_mode_from_inputs(inputs)
+        if not _read_setup_name(inputs):
+            return False
+
+        mode = dialog_state.active_mode
+        active_state = dialog_state.active_state()
+        sync_from_ui = _milling_tab_visible(inputs, mode)
+        if not active_state.is_ready_for_ok(inputs, sync_from_ui=sync_from_ui):
+            return False
+
+        controller = dialog_state.tool_controller
+        if not controller:
+            return False
+        section = SECTION_SIDE if mode == MODE_SIDE else SECTION_FLAT
+        if not controller.selected_description(inputs, section):
+            return False
+
+        if mode == MODE_SIDE:
+            sets = active_state.valid_sets_from_memory()
+            if any(set_data.get('drill_holes') for set_data in sets):
+                if not controller.selected_description(inputs, SECTION_DRILL):
+                    return False
+        return True
+    except Exception:
+        return False
 
 
 def read_dialog_values(inputs, dialog_state):
@@ -623,7 +673,10 @@ def handle_input_changed(changed_input, inputs, dialog_state, command):
             dialog_state.visible_tab = input_id
             if dialog_state.set_active_mode_from_tab(input_id):
                 activate_tab_inputs(inputs, dialog_state)
+            _nudge_validation(inputs)
             preview_requested = True
+    elif input_id == INPUT_VALIDATION_NUDGE:
+        return False
     elif controller and controller.owns_input(input_id):
         cam = adsk.cam.CAM.cast(adsk.core.Application.get().activeProduct)
         if cam:

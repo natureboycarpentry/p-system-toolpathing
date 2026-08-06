@@ -51,6 +51,7 @@ from lib.preview import clear_toolpath_preview, draw_toolpath_preview
 from lib.placement_sets import MODE_FLAT, MODE_SIDE
 from commands.generate_clamex.dialog import (
     build_dialog_inputs,
+    dialog_values_are_valid,
     handle_input_changed,
     read_dialog_values,
     read_preview_enabled,
@@ -247,6 +248,10 @@ def handle_command_created(args, handlers):
         cmd.inputChanged.add(on_input_changed)
         handlers.append(on_input_changed)
 
+        on_validate = CommandValidateInputsHandler(state)
+        cmd.validateInputs.add(on_validate)
+        handlers.append(on_validate)
+
         on_execute_preview = CommandExecutePreviewHandler(state)
         cmd.executePreview.add(on_execute_preview)
         handlers.append(on_execute_preview)
@@ -320,6 +325,26 @@ class CommandInputChangedHandler(adsk.core.InputChangedEventHandler):
         except Exception:
             app = adsk.core.Application.get()
             app.log(f'Clamex inputChanged failed:\n{traceback.format_exc()}')
+
+
+class CommandValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
+    def __init__(self, state):
+        super().__init__()
+        self._state = state
+
+    def notify(self, args):
+        try:
+            event_args = adsk.core.ValidateInputsEventArgs.cast(args)
+            inputs = event_args.inputs
+            event_args.areInputsValid = dialog_values_are_valid(inputs, self._state)
+        except Exception:
+            app = adsk.core.Application.get()
+            app.log(f'Clamex validateInputs failed:\n{traceback.format_exc()}')
+            try:
+                event_args = adsk.core.ValidateInputsEventArgs.cast(args)
+                event_args.areInputsValid = False
+            except Exception:
+                pass
 
 
 class CommandExecutePreviewHandler(adsk.core.CommandEventHandler):
@@ -422,6 +447,10 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
                 ]
             ui.messageBox('\n'.join(message_parts), ADDIN_TITLE)
         except RuntimeError as exc:
+            # Incomplete OK is blocked by validateInputs (grey OK). Remaining
+            # failures are rare mid-generation issues; show a clean message.
+            # executeFailed was tried earlier but closed the dialog and showed
+            # a Fusion system error instead of keeping the command open.
             ui.messageBox(str(exc), ADDIN_TITLE)
         except Exception:
             message = f'Failed:\n{traceback.format_exc()}'
