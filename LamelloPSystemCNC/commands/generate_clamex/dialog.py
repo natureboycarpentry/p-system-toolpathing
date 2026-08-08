@@ -82,6 +82,15 @@ _ANCHOR_POINT_FILTERS = (
 # Hidden toggle flipped after tab switches so Fusion re-runs validateInputs.
 INPUT_VALIDATION_NUDGE = 'validationNudge'
 
+
+class IncompleteTabError(RuntimeError):
+    """A milling tab has partial selections (defense-in-depth; OK is greyed
+    by dialog_values_are_valid before this can normally be reached)."""
+
+    def __init__(self, tab_id, message):
+        super().__init__(message)
+        self.tab_id = tab_id
+
 def resolve_side_half_flute_mm(inputs, dialog_state):
     """Absolute half side-cutter flute length (mm) for cutter Z offsets."""
     controller = dialog_state.tool_controller if dialog_state else None
@@ -187,6 +196,30 @@ def activate_tab_inputs(inputs, dialog_state, inactive_state=None):
         update_drill_input_visibility(inputs)
     if inactive_state:
         inactive_state.clear_selection_ui(inputs)
+
+
+def switch_to_milling_tab(inputs, dialog_state, tab_id):
+    """Programmatically activate a milling tab (mirrors the inputChanged path).
+
+    Saves and clears the outgoing tab's selection UI, updates DialogState, and
+    restores the target tab's detail inputs before activating it, so a
+    subsequent inputChanged for the tab is a no-op.
+    """
+    tab = adsk.core.TabCommandInput.cast(inputs.itemById(tab_id))
+    if not tab:
+        return
+    previous_tab = dialog_state.visible_tab
+    if previous_tab != tab_id:
+        outgoing = dialog_state.state_for_tab(previous_tab)
+        if outgoing:
+            outgoing.save_detail_from_inputs(inputs)
+            outgoing.clear_selection_ui(inputs)
+        dialog_state.visible_tab = tab_id
+        if dialog_state.set_active_mode_from_tab(tab_id):
+            activate_tab_inputs(inputs, dialog_state)
+    if not tab.isActive:
+        tab.activate()
+    _nudge_validation(inputs)
 
 
 def _build_mode_inputs(parent_inputs, mode, set_defaults):
@@ -559,77 +592,110 @@ def read_preview_values(inputs, dialog_state):
 
 
 def dialog_values_are_valid(inputs, dialog_state):
-    """True when OK should be enabled for the active milling tab (memory-backed).
+    """True when OK should be enabled: every started milling tab is complete.
 
     Selection inputs stay at minimum 0 so Fusion does not block OK from an
-    inactive tab. This check mirrors read_dialog_values without raising.
+    inactive tab; checks use in-memory set state instead. The active tab must
+    be ready, and any other tab with started selections must also be ready
+    (or cleared). A partial tab greys OK rather than erroring after OK,
+    because Fusion closes the dialog after execute even with executeFailed.
     """
     try:
         dialog_state.sync_active_mode_from_inputs(inputs)
         if not _read_setup_name(inputs):
             return False
 
-        mode = dialog_state.active_mode
-        active_state = dialog_state.active_state()
-        sync_from_ui = _milling_tab_visible(inputs, mode)
-        if not active_state.is_ready_for_ok(inputs, sync_from_ui=sync_from_ui):
-            return False
-
         controller = dialog_state.tool_controller
         if not controller:
             return False
-        section = SECTION_SIDE if mode == MODE_SIDE else SECTION_FLAT
-        if not controller.selected_description(inputs, section):
-            return False
 
-        if mode == MODE_SIDE:
-            sets = active_state.valid_sets_from_memory()
-            if any(set_data.get('drill_holes') for set_data in sets):
-                if not controller.selected_description(inputs, SECTION_DRILL):
-                    return False
+        active_mode = dialog_state.active_mode
+        for mode, tab_id in ((MODE_SIDE, TAB_SIDE), (MODE_FLAT, TAB_FLAT)):
+            state = dialog_state.state_for_tab(tab_id)
+            sync_from_ui = _milling_tab_visible(inputs, mode)
+            if mode != active_mode and not state.has_started_selections():
+                continue
+            if not state.is_ready_for_ok(inputs, sync_from_ui=sync_from_ui):
+                return False
+
+            section = SECTION_SIDE if mode == MODE_SIDE else SECTION_FLAT
+            if not controller.selected_description(inputs, section):
+                return False
+            if mode == MODE_SIDE:
+                sets = state.valid_sets_from_memory()
+                if any(set_data.get('drill_holes') for set_data in sets):
+                    if not controller.selected_description(inputs, SECTION_DRILL):
+                        return False
         return True
     except Exception:
         return False
 
 
-def read_dialog_values(inputs, dialog_state):
+def read_generation_jobs(inputs, dialog_state):
+    """Read shared values plus one generation job per ready milling tab.
+
+    Both tabs are classified from memory (syncing only the visible tab's UI).
+    Empty tabs are skipped. A tab with partial selections raises
+    IncompleteTabError as defense-in-depth; validateInputs greys OK before
+    that can normally happen. Other precondition failures raise RuntimeError.
+    """
     dialog_state.sync_active_mode_from_inputs(inputs)
     setup_name = _read_setup_name(inputs)
     if not setup_name:
         raise RuntimeError('Select a Setup on the Setup tab.')
 
-    mode = dialog_state.active_mode
-    active_state = dialog_state.active_state()
-    sets = active_state.required_generation_sets(
-        inputs,
-        sync_from_ui=_milling_tab_visible(inputs, mode),
-    )
-
     controller = dialog_state.tool_controller
-    label = mode_display_label(mode)
-    section = SECTION_SIDE if mode == MODE_SIDE else SECTION_FLAT
-    tool_description = controller.selected_description(inputs, section)
-    if not tool_description:
-        raise RuntimeError(f'Select a {label} tool on the Setup tab.')
+    jobs = []
+    for mode, tab_id in ((MODE_SIDE, TAB_SIDE), (MODE_FLAT, TAB_FLAT)):
+        state = dialog_state.state_for_tab(tab_id)
+        if _milling_tab_visible(inputs, mode):
+            state.save_detail_from_inputs(inputs)
+        if not state.has_started_selections():
+            continue
 
-    drill_tool_description = controller.selected_description(inputs, SECTION_DRILL)
-    if mode == MODE_SIDE and not drill_tool_description:
-        if any(set_data.get('drill_holes') for set_data in sets):
-            raise RuntimeError('Select a Drill tool on the Setup tab.')
+        label = mode_display_label(mode)
+        if not state.is_consistent_from_memory():
+            ref_label = 'a cut-in face' if mode == MODE_SIDE else 'a feed axis'
+            raise IncompleteTabError(
+                tab_id,
+                f'Each {label} placement set needs at least one anchor point and {ref_label}.',
+            )
+        sets = state.valid_sets_from_memory()
+        if not sets:
+            raise IncompleteTabError(
+                tab_id,
+                f'Configure at least one valid {label} placement set.',
+            )
 
-    values = {
-        'mode': mode,
-        'sets': sets,
+        section = SECTION_SIDE if mode == MODE_SIDE else SECTION_FLAT
+        tool_description = controller.selected_description(inputs, section) if controller else None
+        if not tool_description:
+            raise RuntimeError(f'Select a {label} tool on the Setup tab.')
+
+        job = {
+            'mode': mode,
+            'sets': sets,
+            'tool_description': tool_description,
+            'drill_tool_description': None,
+        }
+        if mode == MODE_SIDE:
+            drill_tool_description = controller.selected_description(inputs, SECTION_DRILL)
+            if not drill_tool_description and any(
+                set_data.get('drill_holes') for set_data in sets
+            ):
+                raise RuntimeError('Select a Drill tool on the Setup tab.')
+            job['drill_tool_description'] = drill_tool_description
+            job['side_half_flute_mm'] = resolve_side_half_flute_mm(inputs, dialog_state)
+        jobs.append(job)
+
+    if not jobs:
+        # Unreachable while OK is greyed until the active tab is ready.
+        raise RuntimeError('Configure at least one valid placement set.')
+
+    return {
         'setup_name': setup_name,
-        'tool_description': tool_description,
-        'drill_tool_description': drill_tool_description,
+        'jobs': jobs,
     }
-    if mode == MODE_SIDE:
-        values['side_half_flute_mm'] = resolve_side_half_flute_mm(
-            inputs,
-            dialog_state,
-        )
-    return values
 
 
 def _auto_update_op_prefix(inputs, state):

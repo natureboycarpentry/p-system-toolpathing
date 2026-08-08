@@ -592,6 +592,13 @@ class PlacementSetState:
                 return False
         return True
 
+    def has_started_selections(self):
+        """True when any set has anchors and/or a reference axis (memory-backed)."""
+        return any(
+            set_data.get('anchor_points') or set_data.get('reference_axis')
+            for set_data in self.sets
+        )
+
     def valid_sets_from_memory(self):
         return [dict(set_data) for set_data in self.sets if _set_is_valid(set_data, self.mode)]
 

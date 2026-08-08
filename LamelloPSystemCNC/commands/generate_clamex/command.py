@@ -53,7 +53,7 @@ from commands.generate_clamex.dialog import (
     build_dialog_inputs,
     dialog_values_are_valid,
     handle_input_changed,
-    read_dialog_values,
+    read_generation_jobs,
     read_preview_enabled,
     read_preview_values,
     seed_anchor_selection,
@@ -188,38 +188,46 @@ def _execute_flat_generation(values, setup, setup_z_axis, tool, preset, componen
 
 
 def _execute_generation(values, cam, design):
+    """Run generation for every ready milling tab; returns one result per job."""
     if not design:
         raise RuntimeError('Could not access the Design product in this document.')
 
     setup = _resolve_setup(cam, values['setup_name'])
     setup_z_axis = setup_wcs_z_axis(setup)
-    tool = find_tool_by_description(cam, values['tool_description'])
-    if not tool:
-        raise RuntimeError(f'Tool "{values["tool_description"]}" was not found.')
-
-    preset = default_tool_preset(tool)
     component, occurrence = get_or_create_clamex_component(design)
 
-    if values['mode'] == MODE_SIDE:
-        placements, traces, drills = _execute_side_generation(
-            values, setup, setup_z_axis, tool, preset, component, occurrence, cam
-        )
-        return {
-            'mode': MODE_SIDE,
-            'placements': placements,
-            'traces': traces,
-            'drills': drills,
-        }
+    results = []
+    for job in values['jobs']:
+        tool = find_tool_by_description(cam, job['tool_description'])
+        if not tool:
+            raise RuntimeError(f'Tool "{job["tool_description"]}" was not found.')
+        preset = default_tool_preset(tool)
 
-    placements, traces = _execute_flat_generation(
-        values, setup, setup_z_axis, tool, preset, component, occurrence, cam
-    )
-    return {
-        'mode': MODE_FLAT,
-        'placements': placements,
-        'traces': traces,
-        'drills': 0,
-    }
+        if job['mode'] == MODE_SIDE:
+            placements, traces, drills = _execute_side_generation(
+                job, setup, setup_z_axis, tool, preset, component, occurrence, cam
+            )
+            results.append(
+                {
+                    'mode': MODE_SIDE,
+                    'placements': placements,
+                    'traces': traces,
+                    'drills': drills,
+                }
+            )
+        else:
+            placements, traces = _execute_flat_generation(
+                job, setup, setup_z_axis, tool, preset, component, occurrence, cam
+            )
+            results.append(
+                {
+                    'mode': MODE_FLAT,
+                    'placements': placements,
+                    'traces': traces,
+                    'drills': 0,
+                }
+            )
+    return results
 
 
 def handle_command_created(args, handlers):
@@ -378,7 +386,11 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
         try:
             event_args = adsk.core.CommandEventArgs.cast(args)
             inputs = event_args.command.commandInputs
-            values = read_dialog_values(inputs, self._state)
+            # Partial tabs are blocked before execute: validateInputs greys OK
+            # while any started milling tab is incomplete. If read_generation_jobs
+            # still raises IncompleteTabError, it falls through the RuntimeError
+            # handler below (message only; executeFailed closes the dialog).
+            values = read_generation_jobs(inputs, self._state)
 
             cam = adsk.cam.CAM.cast(app.activeProduct)
             if not cam:
@@ -393,58 +405,63 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
 
             results = _execute_generation(values, cam, design)
 
-            active_state = self._state.active_state()
-            active_set = _active_set_or_defaults(active_state)
+            side_job = next(
+                (job for job in values['jobs'] if job['mode'] == MODE_SIDE), None
+            )
+            flat_job = next(
+                (job for job in values['jobs'] if job['mode'] == MODE_FLAT), None
+            )
 
-            global_settings = {
-                'preview_enabled': read_preview_enabled(inputs),
-            }
-            if values['mode'] == MODE_SIDE:
-                save_settings(
-                    _addin_dir(),
-                    setup_name=values['setup_name'],
-                    side_settings={
-                        'tool_description': values['tool_description'],
-                        'op_prefix': active_set.get('op_prefix'),
-                        'flip_feed': active_set.get('flip_feed', False),
-                        'flip_z': active_set.get('flip_z', False),
-                        'cutter_z_reference': active_set.get(
-                            'cutter_z_reference',
-                            DEFAULT_CUTTER_Z_REFERENCE,
-                        ),
-                        'connector_type': active_set.get('connector_type'),
-                        'drill_holes': active_set.get('drill_holes', False),
-                        'drill_tool_description': values.get('drill_tool_description'),
-                        'drill_clearance_mm': active_set.get('drill_clearance_mm'),
-                    },
-                    global_settings=global_settings,
-                )
-            else:
-                save_settings(
-                    _addin_dir(),
-                    setup_name=values['setup_name'],
-                    flat_settings={
-                        'tool_description': values['tool_description'],
-                        'op_prefix': active_set.get('op_prefix'),
-                        'flip_feed': active_set.get('flip_feed', False),
-                        'flip_z': active_set.get('flip_z', False),
-                        'connector_type': active_set.get('connector_type'),
-                    },
-                    global_settings=global_settings,
-                )
+            side_settings = None
+            if side_job:
+                side_set = _active_set_or_defaults(self._state.side_state)
+                side_settings = {
+                    'tool_description': side_job['tool_description'],
+                    'op_prefix': side_set.get('op_prefix'),
+                    'flip_feed': side_set.get('flip_feed', False),
+                    'flip_z': side_set.get('flip_z', False),
+                    'cutter_z_reference': side_set.get(
+                        'cutter_z_reference',
+                        DEFAULT_CUTTER_Z_REFERENCE,
+                    ),
+                    'connector_type': side_set.get('connector_type'),
+                    'drill_holes': side_set.get('drill_holes', False),
+                    'drill_tool_description': side_job.get('drill_tool_description'),
+                    'drill_clearance_mm': side_set.get('drill_clearance_mm'),
+                }
 
-            if results['mode'] == MODE_SIDE:
-                message_parts = [
-                    f'Created {results["traces"]} Edge Trace operation(s) '
-                    f'for {results["placements"]} anchor placement(s).'
-                ]
-                if results['drills']:
-                    message_parts.append(f'Created {results["drills"]} Edge Drill operation(s).')
-            else:
-                message_parts = [
-                    f'Created {results["traces"]} Face Trace operation(s) '
-                    f'for {results["placements"]} anchor placement(s).'
-                ]
+            flat_settings = None
+            if flat_job:
+                flat_set = _active_set_or_defaults(self._state.flat_state)
+                flat_settings = {
+                    'tool_description': flat_job['tool_description'],
+                    'op_prefix': flat_set.get('op_prefix'),
+                    'flip_feed': flat_set.get('flip_feed', False),
+                    'flip_z': flat_set.get('flip_z', False),
+                    'connector_type': flat_set.get('connector_type'),
+                }
+
+            save_settings(
+                _addin_dir(),
+                setup_name=values['setup_name'],
+                side_settings=side_settings,
+                flat_settings=flat_settings,
+                global_settings={
+                    'preview_enabled': read_preview_enabled(inputs),
+                },
+            )
+
+            message_parts = []
+            for result in results:
+                label = 'Edge' if result['mode'] == MODE_SIDE else 'Face'
+                message_parts.append(
+                    f'Created {result["traces"]} {label} Trace operation(s) '
+                    f'for {result["placements"]} anchor placement(s).'
+                )
+                if result['drills']:
+                    message_parts.append(
+                        f'Created {result["drills"]} {label} Drill operation(s).'
+                    )
             ui.messageBox('\n'.join(message_parts), ADDIN_TITLE)
         except RuntimeError as exc:
             # Incomplete OK is blocked by validateInputs (grey OK). Remaining

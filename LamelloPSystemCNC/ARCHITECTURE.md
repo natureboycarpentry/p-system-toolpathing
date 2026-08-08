@@ -25,15 +25,16 @@ CommandCreated (lazy)
 
 inputChanged / validateInputs / executePreview
   → dialog.handle_input_changed()     (tabs, sets, tool params, preview toggle)
-  → dialog.dialog_values_are_valid()  (greys OK until active tab is complete)
+  → dialog.dialog_values_are_valid()  (greys OK until every started milling tab is complete)
   → dialog.read_preview_values()
   → preview.draw_toolpath_preview()   (skipped/cleared when Preview is off)
 
 execute (OK)
-  → dialog.read_dialog_values()
-  → command._execute_generation()
+  → dialog.read_generation_jobs()     (one job per ready tab; partial tabs are
+                                       blocked earlier by greying OK)
+  → command._execute_generation()     (loops the jobs)
        → transform_* → path_geometry.create_*_sketch → cam_ops.create_*_operation
-  → settings.save_settings()
+  → settings.save_settings()          (side_ and/or flat_ keys for the modes that ran)
 ```
 
 ## Module map
@@ -77,7 +78,8 @@ Key behaviours:
 - **Tab switching:** `DialogState.visible_tab` tracks which tab is showing. Leaving a milling tab saves its detail to memory and clears its selection UI; preview and OK read from memory (`sync_from_ui=False`) while the Setup tab is visible, so cleared selection inputs never wipe state.
 - **Preview checkbox:** when off, `executePreview` clears any `__Preview__` sketches and skips drawing. The state persists in settings (`preview_enabled`).
 - **Preconditions:** missing CAM product, setups, or document tools raise `UserFacingError` during `CommandCreated`, shown as a single-line message box (no traceback). Unexpected exceptions still show the full traceback.
-- **OK validation:** `validateInputs` greys OK until the active milling tab is complete (anchors + cut-in face / feed axis, Setup, and that tab’s tool). Checks use in-memory set state so an incomplete inactive tab cannot block OK; selection inputs keep min 0. A hidden nudge input forces re-validation after tab switches. (`executeFailed` was tried to keep the dialog open on incomplete OK, but Fusion still closed it and showed a system error.)
+- **OK validation:** `validateInputs` greys OK until the active milling tab is complete (anchors + cut-in face / feed axis, Setup, and that tab’s tool) **and** every other milling tab with started selections is also complete, including its tool (and the Drill tool when any Edge set enables drilling). Checks use in-memory set state; selection inputs keep min 0. A hidden nudge input forces re-validation after tab switches. This pre-OK gating is the only way to keep the dialog open: Fusion closes the command dialog after `execute` even when `executeFailed` is set (tried; it also showed a system error).
+- **Dual-tab OK:** clicking OK generates every milling tab that has at least one complete placement set — both Edge and Face when both are ready, or just the non-empty one. Tabs with no selections at all are skipped. A tab with *partial* selections (anchors without a cut-in face / feed axis, or vice versa) greys OK until it is completed or cleared, so the user can fix it in the same dialog session. `read_generation_jobs` still raises `IncompleteTabError` as defense-in-depth; it is reported like any other `RuntimeError` (message box, no `executeFailed`).
 
 ## Edge vs Face
 
@@ -92,7 +94,7 @@ Both milling tabs share the placement-sets pattern (table, anchors, connector ty
 | CAM ops | Trace (+ optional Drill) | Trace only |
 | Default op prefix | `P14 - Edge` / `P10 - Edge` | `P14 - Face` / `P10 - Face` |
 
-Generation runs for the **active milling tab only** when the user clicks OK (the last milling tab visited if OK is clicked from the Setup tab).
+Generation runs for **every milling tab with at least one complete placement set** when the user clicks OK (from any tab, including Setup). Empty tabs are skipped; a tab with partial selections keeps OK greyed until it is completed or cleared.
 
 ## Naming conventions
 
@@ -157,5 +159,8 @@ Run after code changes in Fusion Manufacture:
 - [ ] **Edge Flip feed** reverses cut-in vs the face normal; Flip Z reverses depth vs setup WCS Z
 - [ ] Switch tabs (including Setup) and back — selections restore, preview follows the active milling tab
 - [ ] Incomplete sets keep OK disabled; completing anchors + cut-in face / feed axis (and Setup tools) enables OK; switching away from a valid tab to an incomplete one greys OK again
+- [ ] With both Edge and Face complete, OK creates operations for both tabs and the success message lists both
+- [ ] With one tab complete and the other empty, OK generates only the complete tab
+- [ ] With one tab complete and the other partially selected (e.g. anchors but no feed axis), OK switches to the incomplete tab, shows the error, and creates nothing
 - [ ] Settings persist (`setup_name`, tools, flip flags, `preview_enabled`) across command runs
 - [ ] Setup must include the **Clamex Toolpaths** component for CAM geometry assignment
