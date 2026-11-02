@@ -115,15 +115,18 @@ def draw_draft(design, draft, world_points, connector_type, edge_cutter_diameter
     _refresh()
 
 
-def draw_existing(design, skip_joint_id=None):
+def draw_existing(design, skip_joint_id=None, skip_joint_ids=()):
     """Faint markers for joints already stored on assembled (non-arranged) parts."""
+    skip = set(skip_joint_ids)
+    if skip_joint_id:
+        skip.add(skip_joint_id)
     group = None
     for occurrence in design.rootComponent.allOccurrences:
         if jt.is_arranged_occurrence(occurrence):
             continue
         for connector in jt.occurrence_connectors(occurrence):
             record = connector['record']
-            if connector['role'] != jt.ROLE_EDGE or record.get('id') == skip_joint_id:
+            if connector['role'] != jt.ROLE_EDGE or record.get('id') in skip:
                 continue
             if group is None:
                 group = _new_group(design)

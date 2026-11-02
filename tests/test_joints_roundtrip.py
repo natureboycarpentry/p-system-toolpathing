@@ -137,6 +137,41 @@ class JointRoundTrip(unittest.TestCase):
         self.assertEqual(jt.delete_joint(self.design, jid), 1)
         self.assertEqual(jt.collect_joints(self.design), [])
 
+    def test_find_detects_touching_end(self):
+        shelf_top = fs.Face(
+            self.shelf_asm,
+            [(1.5, 0, 51.8), (61.5, 0, 51.8), (61.5, 30, 51.8), (1.5, 30, 51.8)],
+            (0, 0, 1),
+        )
+        side_outer = fs.Face(
+            self.side_asm,
+            [(63.3, 0, 0), (63.3, 30, 0), (63.3, 30, 100), (63.3, 0, 100)],
+            (1, 0, 0),
+        )
+        drafts, skipped = jt.find_joint_drafts([shelf_top, self.side_face, side_outer, self.shelf_end])
+        self.assertEqual(skipped, 0)
+        self.assertEqual(len(drafts), 1)
+        self.assertEqual(drafts[0].edge_component.name, 'Shelf')
+        self.assertAlmostEqual(drafts[0].frame['length_mm'], 300.0, places=6)
+
+    def test_find_ignores_face_to_face(self):
+        back = fs.Component('Back')
+        back_asm = fs.Occurrence(back, fs.rigid(IDENTITY, (0, 0, 0)), 'Back:1')
+        # Large back-panel face lying flat against the side's inner face.
+        back_face = fs.Face(
+            back_asm,
+            [(61.5, 0, 0), (61.5, 30, 0), (61.5, 30, 90), (61.5, 0, 90)],
+            (1, 0, 0),
+        )
+        drafts, _skipped = jt.find_joint_drafts([back_face, self.side_face])
+        self.assertEqual(drafts, [])
+
+    def test_find_ignores_same_component(self):
+        other = fs.Occurrence(self.shelf, fs.rigid(IDENTITY, (0, 0, 0)), 'Shelf:2')
+        face = fs.Face(other, [(61.5, 0, 0), (61.5, 0, 100), (61.5, 30, 100), (61.5, 30, 0)], (-1, 0, 0))
+        drafts, _skipped = jt.find_joint_drafts([face, self.shelf_end])
+        self.assertEqual(drafts, [])
+
     def test_swap_roles(self):
         draft = jt.analyze_face_pair(self.side_face, self.shelf_end, swap=True)
         self.assertEqual(draft.edge_component.name, 'Left')

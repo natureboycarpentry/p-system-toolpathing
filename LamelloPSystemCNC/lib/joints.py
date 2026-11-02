@@ -168,6 +168,75 @@ def analyze_face_pair(face_a, face_b, swap=False):
     return JointDraft(edge_face, mate_face, frame)
 
 
+# --- automatic detection (Find Joints) --------------------------------------
+
+# A face thicker than this across the joint is a panel face, not a panel end.
+MAX_EDGE_THICKNESS_MM = 60.0
+# Contacts shorter than this along the joint are ignored (no room for a connector).
+MIN_JOINT_LENGTH_MM = 40.0
+
+
+class _FaceInfo:
+    def __init__(self, face):
+        self.face = face
+        self.component = face.assemblyContext.component
+        self.normal = face_outward_normal(face)
+        self.vertices = _face_vertices_mm(face)
+        self.offset = jm.dot(self.normal, self.vertices[0])
+        self.area = face.area
+
+
+def _face_infos(faces):
+    infos = []
+    skipped = 0
+    for face in faces:
+        if not face or not _is_planar(face) or not face.assemblyContext:
+            skipped += 1
+            continue
+        try:
+            info = _FaceInfo(face)
+        except (jm.JointGeometryError, IndexError):
+            skipped += 1
+            continue
+        if info.vertices:
+            infos.append(info)
+    return infos, skipped
+
+
+def find_joint_drafts(faces):
+    """Every touching panel-end / panel-face pair among *faces* as JointDrafts.
+
+    Faces must be planar proxies with an assemblyContext. A pair qualifies when
+    the faces belong to different components, face each other, touch (planes
+    within CONTACT_TOLERANCE_MM), overlap along the joint by at least
+    MIN_JOINT_LENGTH_MM, and the smaller face is a panel end (at most
+    MAX_EDGE_THICKNESS_MM across). Returns (drafts, skipped_face_count).
+    """
+    infos, skipped = _face_infos(faces)
+    drafts = []
+    for i, a in enumerate(infos):
+        for b in infos[i + 1:]:
+            if a.component == b.component:
+                continue
+            if jm.dot(a.normal, b.normal) > -jm.FACING_TOLERANCE:
+                continue
+            # Opposite normals: planes coincide when the offsets cancel.
+            if abs(a.offset + b.offset) > jm.CONTACT_TOLERANCE_MM:
+                continue
+            try:
+                draft = analyze_face_pair(a.face, b.face)
+            except jm.JointGeometryError:
+                continue
+            frame = draft.frame
+            if frame['thickness_mm'] > MAX_EDGE_THICKNESS_MM:
+                continue
+            if frame['length_mm'] < MIN_JOINT_LENGTH_MM:
+                continue
+            drafts.append(draft)
+    drafts.sort(key=lambda d: (d.label(), d.frame['start']))
+    return drafts, skipped
+
+
 # --- records ----------------------------------------------------------------
 
 def _record(joint_id, role, partner, connector_type, end_offset_mm, count, frame,
