@@ -294,6 +294,32 @@ def transform_feed_chain(
         flip_z,
     )
 
+    return transform_feed_chain_at(
+        anchor_origin,
+        feed_axis,
+        depth_axis,
+        local_points,
+        cross_offset_mm,
+        cutter_z_reference,
+        half_flute_mm,
+    )
+
+
+def transform_feed_chain_at(
+    anchor_origin,
+    feed_axis,
+    depth_axis,
+    local_points,
+    cross_offset_mm,
+    cutter_z_reference=DEFAULT_CUTTER_Z_REFERENCE,
+    half_flute_mm=None,
+):
+    """Edge chain from an explicit anchor Point3D and unit feed/depth Vector3Ds.
+
+    Shared by the manual (selected entities) and joint (stored connectors) flows.
+    """
+    if cross_offset_mm is None:
+        raise ValueError('cross_offset_mm is required')
     cross_offset_cm = cross_offset_mm * MM_TO_CM
     depth_z0_offset_mm = _depth_offset_mm(cutter_z_reference, half_flute_mm)
     world_points = []
@@ -327,6 +353,11 @@ def transform_flat_chain(
         flip_z,
     )
 
+    return transform_flat_chain_at(anchor_origin, feed_axis, depth_axis, local_points)
+
+
+def transform_flat_chain_at(anchor_origin, feed_axis, depth_axis, local_points):
+    """Face chain from an explicit anchor Point3D and unit feed/depth Vector3Ds."""
     world_points = []
     for feed_mm, depth_mm in local_points:
         feed_cm = feed_mm * MM_TO_CM
@@ -357,6 +388,11 @@ def drill_hole_world_point(
         flip_feed,
         flip_z,
     )
+    return drill_hole_point_at(anchor_origin, feed_axis, connector_type)
+
+
+def drill_hole_point_at(anchor_origin, feed_axis, connector_type=None):
+    """Tightening-hole centre at anchor − feed × hole offset (explicit vectors)."""
     offset_cm = hole_offset_mm(connector_type) * MM_TO_CM
     return adsk.core.Point3D.create(
         anchor_origin.x - offset_cm * feed_axis.x,

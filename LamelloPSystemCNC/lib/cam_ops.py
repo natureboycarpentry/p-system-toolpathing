@@ -8,6 +8,8 @@ mapping, and replaces prior Clamex ops with the same display name on regenerate.
 import adsk.cam
 import adsk.core
 
+from lib import trace_log
+
 
 def operation_display_name(jo_name, prefix='Clamex'):
     return f'{prefix} – {jo_name}'
@@ -63,13 +65,33 @@ def _set_trace_defaults(op_input):
                 pass
 
 
+def _describe_entity(entity):
+    try:
+        context = entity.assemblyContext
+        path = context.fullPathName if context else '(no context)'
+    except Exception as exc:
+        path = f'(context error: {exc})'
+    try:
+        valid = entity.isValid
+    except Exception as exc:
+        valid = f'error: {exc}'
+    return f'{entity.objectType.split("::")[-1]} valid={valid} context={path}'
+
+
 def _assign_open_chain(contour_param, geometry_entities):
+    entities = list(geometry_entities)
+    trace_log.step(f'chain: {len(entities)} entities; first {_describe_entity(entities[0]) if entities else None}')
     chains = contour_param.getCurveSelections()
+    trace_log.step('chain: got curve selections; clear')
     chains.clear()
     chain = chains.createNewChainSelection()
+    trace_log.step('chain: created chain; isOpen')
     chain.isOpen = True
-    chain.inputGeometry = list(geometry_entities)
+    trace_log.step('chain: set inputGeometry')
+    chain.inputGeometry = entities
+    trace_log.step('chain: applyCurveSelections')
     contour_param.applyCurveSelections(chains)
+    trace_log.step('chain: applied')
 
 
 def remove_existing_operation(setup, display_name):
@@ -218,6 +240,7 @@ def create_drill_operation(
     """
     remove_existing_operation(setup, display_name)
 
+    trace_log.step(f'drill: {display_name}: createInput')
     op_input = setup.operations.createInput('drill')
     op_input.displayName = display_name
     op_input.tool = tool
@@ -253,8 +276,10 @@ def create_trace_operation(setup, cam, display_name, tool, geometry_entities, to
 
     Returns the created Operation.
     """
+    trace_log.step(f'trace: {display_name}: remove existing')
     remove_existing_operation(setup, display_name)
 
+    trace_log.step('trace: createInput')
     op_input = setup.operations.createInput('trace')
     op_input.displayName = display_name
     op_input.tool = tool
@@ -266,19 +291,24 @@ def create_trace_operation(setup, cam, display_name, tool, geometry_entities, to
 
     _set_trace_defaults(op_input)
 
-    contour_param = _cad_contour_parameter(op_input.parameters)
-    if not contour_param:
+    if not _cad_contour_parameter(op_input.parameters):
         raise RuntimeError('Trace operation has no contour/curve parameter.')
 
-    _assign_open_chain(contour_param, geometry_entities)
+    # Geometry goes on the live operation only: applying curve selections to the
+    # OperationInput crashes Fusion when the setup's models sit in a CAM-side
+    # assembly ('CAM Component:1+<design>:1+...').
+    trace_log.step('trace: operations.add')
     op = setup.operations.add(op_input)
 
-    # Re-apply geometry on the live operation in case add() resets selections.
     live_contour = _cad_contour_parameter(op.parameters)
-    if live_contour:
-        _assign_open_chain(live_contour, geometry_entities)
+    if not live_contour:
+        raise RuntimeError('Trace operation has no contour/curve parameter.')
+    trace_log.step('trace: assign chain on live op')
+    _assign_open_chain(live_contour, geometry_entities)
 
+    trace_log.step('trace: generateToolpath')
     cam.generateToolpath(op)
+    trace_log.step('trace: done')
     return op
 
 

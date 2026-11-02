@@ -56,6 +56,17 @@ execute (OK)
 | `lib/settings.py` | Load/save `clamex_settings.json` in per-user AppData (side/flat prefixed + global keys) |
 | `lib/units.py` | mm↔cm conversion and shared vector helpers |
 | `lib/ui_helpers.py` | Shared Fusion dropdown read/select helpers |
+| `lib/preview_cut.py` | Tool-body Combine Cut preview into setup stock (manual tabs) |
+| `lib/tool_body.py` | TemporaryBRep tool solids for the cut preview |
+| `lib/example_tools.py` | Bundled Lamello sample tools for the document library |
+| `lib/joint_math.py` | Pure-Python joint geometry (frame from two faces, connector layout, outlines); unit-tested in `tests/` |
+| `lib/joints.py` | Joint records as component attributes (component-local mm); face-pair analysis; map stored connectors through `occurrence.transform2` |
+| `lib/joint_preview.py` | Custom-graphics preview for the Joints tabs |
+| `commands/joints/command.py` | Design-workspace **Lamello – Joints** command: one dialog with Define / Find / Manage tabs; routes events to the active tab |
+| `commands/define_joints/command.py` | **Define** tab: pick two touching faces for one joint |
+| `commands/find_joints/command.py` | **Find** tab: detect touching panel ends in a selection or the whole assembly, review, save in bulk |
+| `commands/manage_joints/command.py` | **Manage** tab: list, highlight and delete stored joints; flags broken halves |
+| `commands/joint_generate/command.py` | Manufacture **Generate from Joints** command (plan, orientation checks, generation) |
 
 ## Dialog layout
 
@@ -95,6 +106,27 @@ Both milling tabs share the placement-sets pattern (table, anchors, connector ty
 | Default op prefix | `P14 - Edge` / `P10 - Edge` | `P14 - Face` / `P10 - Face` |
 
 Generation runs for **every milling tab with at least one complete placement set** when the user clicks OK (from any tab, including Setup). Empty tabs are skipped; a tab with partial selections keeps OK greyed until it is completed or cleared.
+
+## Joint workflow
+
+Three commands are registered in `entry.py` (`COMMANDS`): the manual dialog and **Generate from Joints** on Manufacture → MILLING → 3D, and **Lamello – Joints** (Define / Find / Manage tabs, id kept as `LamelloDefineJointsCmd`) on Design → SOLID → ASSEMBLE. `LEGACY_CMD_IDS` removes the separate Find / Manage buttons of earlier builds. `_find_panel` tries known panel ids, then a workspace panel named "3D"/"Assemble", then falls back to that workspace's ADD-INS panel. All load lazily via `importlib`.
+
+**Storage.** A joint = two touching planar faces on the assembled model. Each half is a JSON attribute on its own component (`group LamelloPSystemCNC`, name `joint:<id>`), in component-local mm:
+
+```json
+{"v": 1, "id": "…", "role": "edge|face", "partner": "Left", "connector_type": "P14",
+ "end_offset_mm": 100, "count": 2, "length_mm": 300, "thickness_mm": 18,
+ "feed": [x,y,z], "axis": [x,y,z], "contact": [x,y,z], "connectors": [{"p": [x,y,z]}]}
+```
+
+- Edge half: `feed` = outward normal of the edge face (cut-in direction; the side cutter centre sits (R − cut depth) beyond the face), `axis` = panel thickness direction.
+- Face half: `feed` = joint line direction, `axis` = outward normal of the mate face.
+- Connectors sit on the contact plane at the edge panel's mid-thickness, `end_offset` from each end, evenly spaced.
+- Re-defining the same faces (same partner, contact centre within 1 mm) replaces the joint.
+
+**Why it survives Arrange** (verified with `spikes/JointSpike`): Design Arrange leaves the assembly intact and adds `Arrange1:1+EnvelopeN(Qty: n):1+<Part>:k` occurrences of the *same* components, so component attributes are visible on the copies and `transform2` gives their layout pose.
+
+**Generation.** `plan_connectors()` takes jointed occurrences inside the setup's models, prefers arranged copies per component, maps connectors to world, and checks orientation against setup WCS Z (Edge: thickness axis ∥ Z; Face: mate normal = +Z, face-down/tilted are skipped and reported). Jobs go through `transform_feed_chain_at` / `transform_flat_chain_at` / `drill_hole_point_at`, the same code the manual tabs use via `transform_feed_chain` etc. Flip Z / Cutter Z reference / tools share the manual `side_` / `flat_` settings keys.
 
 ## Naming conventions
 
@@ -163,4 +195,11 @@ Run after code changes in Fusion Manufacture:
 - [ ] With one tab complete and the other empty, OK generates only the complete tab
 - [ ] With one tab complete and the other partially selected (e.g. anchors but no feed axis), OK switches to the incomplete tab, shows the error, and creates nothing
 - [ ] Settings persist (`setup_name`, tools, flip flags, `preview_enabled`) across command runs
-- [ ] Setup must include the **Clamex Toolpaths** component for CAM geometry assignment
+- [ ] Generating with a setup whose models exclude **Clamex Toolpaths** adds it automatically (`path_geometry.ensure_clamex_in_setup`, via read/write `Setup.models`); existing model selections are kept
+- [ ] **Joints → Find** (Design): nothing selected lists every panel-end joint; existing ones unticked; OK saves the ticked ones
+- [ ] **Joints → Manage**: rows highlight on select; ticked rows red; OK deletes; broken joints flagged and pre-ticked
+- [ ] **Joints → Define** (Design): pick shelf end + side face → preview shows orange Edge arc in the shelf, blue cavity in the side, connectors at the end offsets; drag the End offset arrow
+- [ ] Save, re-run on the same faces → "already exists" note; change count → replaces; Delete removes
+- [ ] Arrange → **Generate from Joints** lists the right counts; face-down cavities are listed as skipped
+- [ ] Generated Edge slot is centred in the panel thickness and cuts into the edge (not 86 mm into the panel); Face cavity cuts down into the top face
+- [ ] `python3 -m unittest discover -s tests` and `python3 scripts/verify_startup_imports.py` pass

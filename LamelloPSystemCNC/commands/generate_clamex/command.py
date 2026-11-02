@@ -23,11 +23,12 @@ from lib.cam_ops import (
     tool_diameter_mm,
 )
 from lib.path_geometry import (
+    ADD_TO_SETUP_HINT,
     create_drill_point_sketch,
     create_feed_path_sketch,
     create_flat_path_sketch,
+    ensure_clamex_in_setup,
     geometry_for_assembly,
-    get_or_create_clamex_component,
     point_for_assembly,
 )
 from lib.errors import UserFacingError
@@ -194,7 +195,7 @@ def _execute_generation(values, cam, design):
 
     setup = _resolve_setup(cam, values['setup_name'])
     setup_z_axis = setup_wcs_z_axis(setup)
-    component, occurrence = get_or_create_clamex_component(design)
+    component, occurrence, in_setup = ensure_clamex_in_setup(design, setup)
 
     results = []
     for job in values['jobs']:
@@ -227,6 +228,8 @@ def _execute_generation(values, cam, design):
                     'drills': 0,
                 }
             )
+    if not in_setup and results:
+        results[0]['setup_hint'] = ADD_TO_SETUP_HINT
     return results
 
 
@@ -462,6 +465,9 @@ class CommandExecuteHandler(adsk.core.CommandEventHandler):
                     message_parts.append(
                         f'Created {result["drills"]} {label} Drill operation(s).'
                     )
+            for result in results:
+                if result.get('setup_hint'):
+                    message_parts.append(result['setup_hint'])
             ui.messageBox('\n'.join(message_parts), ADDIN_TITLE)
         except RuntimeError as exc:
             # Incomplete OK is blocked by validateInputs (grey OK). Remaining
