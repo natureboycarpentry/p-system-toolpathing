@@ -184,6 +184,10 @@ class Design:
     def __init__(self, components):
         self._components = components
 
+    @property
+    def allComponents(self):
+        return list(self._components)
+
     def findAttributes(self, group, name):
         found = []
         for comp in self._components:

@@ -63,6 +63,7 @@ execute (OK)
 | `lib/joints.py` | Joint records as component attributes (component-local mm); face-pair analysis; map stored connectors through `occurrence.transform2` |
 | `lib/joint_preview.py` | Custom-graphics preview for Define Joints |
 | `commands/define_joints/command.py` | Design-workspace **Define Joints** command |
+| `commands/manage_joints/command.py` | Design-workspace **Manage Joints** command (list, highlight, delete stored joints; flags broken halves) |
 | `commands/joint_generate/command.py` | Manufacture **Generate from Joints** command (plan, orientation checks, generation) |
 
 ## Dialog layout

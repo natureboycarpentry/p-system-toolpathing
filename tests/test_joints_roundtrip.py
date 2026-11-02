@@ -117,6 +117,26 @@ class JointRoundTrip(unittest.TestCase):
         self.assertEqual(jt.delete_joint(self.design, jid), 2)
         self.assertEqual(self.shelf.attributes.count + self.side.attributes.count, 0)
 
+    def test_collect_pairs_halves(self):
+        _draft, (jid, _p, _w) = self.save()
+        joints = jt.collect_joints(self.design)
+        self.assertEqual(len(joints), 1)
+        joint = joints[0]
+        self.assertEqual(joint['id'], jid)
+        self.assertEqual(joint['label'], 'Shelf → Left')
+        self.assertEqual((joint['connector_type'], joint['count']), ('P14', 2))
+        self.assertFalse(joint['broken'])
+
+    def test_collect_flags_missing_half(self):
+        _draft, (jid, _p, _w) = self.save()
+        self.side.attributes.itemByName(jt.GROUP, jt.ATTR_PREFIX + jid).deleteMe()
+        joint = jt.collect_joints(self.design)[0]
+        self.assertTrue(joint['broken'])
+        self.assertIsNone(joint['face'])
+        self.assertEqual(joint['label'], 'Shelf → Left')
+        self.assertEqual(jt.delete_joint(self.design, jid), 1)
+        self.assertEqual(jt.collect_joints(self.design), [])
+
     def test_swap_roles(self):
         draft = jt.analyze_face_pair(self.side_face, self.shelf_end, swap=True)
         self.assertEqual(draft.edge_component.name, 'Left')

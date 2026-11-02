@@ -20,6 +20,7 @@ COLOR_EDGE_CUT = (235, 120, 20)
 COLOR_FACE_CUT = (30, 120, 220)
 COLOR_DRILL = (210, 40, 40)
 COLOR_EXISTING = (150, 150, 150)
+COLOR_MARKED = (220, 30, 30)
 
 _groups = []
 
@@ -133,6 +134,70 @@ def draw_existing(design, skip_joint_id=None):
             _add_polyline(group, [jm.add(p, jm.scale(t, -half_t)), jm.add(p, jm.scale(t, half_t))],
                           COLOR_EXISTING, 3.0)
             _add_polyline(group, [p, jm.add(p, jm.scale(n, -15.0))], COLOR_EXISTING, 3.0)
+    _refresh()
+
+
+def _display_occurrences(design):
+    """component entityToken -> one assembled (non-Arrange) occurrence to draw on."""
+    chosen = {}
+    for occurrence in design.rootComponent.allOccurrences:
+        key = occurrence.component.entityToken
+        if key not in chosen or (
+            jt.is_arranged_occurrence(chosen[key]) and not jt.is_arranged_occurrence(occurrence)
+        ):
+            chosen[key] = occurrence
+    return chosen
+
+
+def draw_managed(design, joints, highlight_id=None, marked_ids=(), edge_cutter_diameter_mm=None):
+    """Every joint for Manage Joints: grey, the highlighted one in colour, marked ones red."""
+    diameter = edge_cutter_diameter_mm or jm.NOMINAL_EDGE_CUTTER_DIAMETER_MM
+    occurrences = _display_occurrences(design)
+    group = _new_group(design)
+    for joint in joints:
+        marked = joint['id'] in marked_ids
+        highlighted = joint['id'] == highlight_id
+        weight = 4.0 if highlighted else 2.0
+        for role in (jt.ROLE_EDGE, jt.ROLE_FACE):
+            half = joint[role]
+            if not half:
+                continue
+            occurrence = occurrences.get(half[0].entityToken)
+            if not occurrence:
+                continue
+            if marked:
+                color = COLOR_MARKED
+            elif highlighted:
+                color = COLOR_EDGE_CUT if role == jt.ROLE_EDGE else COLOR_FACE_CUT
+            else:
+                color = COLOR_EXISTING
+            connector_type = joint['connector_type'] or 'P14'
+            for connector in jt.occurrence_connectors(occurrence):
+                if connector['record'].get('id') != joint['id']:
+                    continue
+                p = jt.point_mm(connector['point'])
+                if role == jt.ROLE_EDGE:
+                    n, t = connector['feed'], connector['axis']
+                    try:
+                        u = jm.normalize(jm.cross(t, n))
+                        arc = jm.edge_cut_outline(p, u, n, diameter, cut_depth_mm(connector_type))
+                        _add_polyline(group, arc, color, weight)
+                    except jm.JointGeometryError:
+                        pass
+                    half_t = 0.5 * float(connector['record'].get('thickness_mm') or 10.0)
+                    _add_polyline(
+                        group, [jm.add(p, jm.scale(t, -half_t)), jm.add(p, jm.scale(t, half_t))],
+                        color, weight,
+                    )
+                else:
+                    _add_polyline(
+                        group,
+                        jm.face_cavity_outline(
+                            p, connector['feed'], connector['axis'], flat_point_chain(connector_type)
+                        ),
+                        color,
+                        weight,
+                    )
     _refresh()
 
 

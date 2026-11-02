@@ -19,6 +19,7 @@ import adsk.fusion
 
 from lib import joint_math as jm
 from lib import joints as jt
+from lib import trace_log
 from lib.cam_ops import (
     create_drill_operation,
     create_trace_operation,
@@ -47,7 +48,9 @@ from lib.path_geometry import (
     create_flat_path_sketch,
     geometry_for_assembly,
     ensure_clamex_in_setup,
+    get_or_create_clamex_component,
     point_for_assembly,
+    setup_model_components,
 )
 from lib.settings import load_settings, save_settings
 from lib.toolpath_def import (
@@ -108,11 +111,14 @@ def _in_paths(occurrence, paths):
 def _jointed_occurrences(design, setup):
     """Occurrences in the setup carrying joints, preferring Arrange copies."""
     include_all, paths = _setup_model_paths(design, setup)
+    components = setup_model_components(design, setup)
     by_component = {}
     for occurrence in design.rootComponent.allOccurrences:
         if not jt.read_component_joints(occurrence.component):
             continue
-        if not include_all and not _in_paths(occurrence, paths):
+        if not include_all and not _in_paths(occurrence, paths) and not any(
+            component == occurrence.component for component in components
+        ):
             continue
         key = occurrence.component.entityToken
         by_component.setdefault(key, []).append(occurrence)
@@ -122,6 +128,74 @@ def _jointed_occurrences(design, setup):
         arranged = [occ for occ in occurrences if jt.is_arranged_occurrence(occ)]
         chosen.extend(arranged or occurrences)
     return chosen, include_all, paths
+
+
+def _describe_model(model):
+    """Short label for a setup model entity: type, path and owning design."""
+    kind = getattr(model, 'objectType', '?').split('::')[-1]
+    for attr in ('fullPathName', 'name'):
+        try:
+            label = getattr(model, attr)
+            break
+        except Exception:
+            label = '?'
+    try:
+        context = model.assemblyContext if hasattr(model, 'assemblyContext') else None
+        if context:
+            label = context.fullPathName
+        elif hasattr(model, 'assemblyContext'):
+            label += ' (no path)'
+    except Exception:
+        pass
+    owner = ''
+    try:
+        parent = model.parentDesign if hasattr(model, 'parentDesign') else None
+        if parent is None and hasattr(model, 'assemblyContext') and model.assemblyContext:
+            parent = model.assemblyContext.component.parentDesign
+        if parent is None and hasattr(model, 'parentComponent'):
+            parent = model.parentComponent.parentDesign
+        if parent is not None:
+            owner = f' [design: {parent.parentDocument.name if parent.parentDocument else "?"}]'
+    except Exception:
+        pass
+    return f'{kind} "{label}"{owner}'
+
+
+def diagnose_no_joints(design, setup):
+    """Lines explaining why a setup produced no connectors (shown + logged)."""
+    jointed = []
+    for occurrence in design.rootComponent.allOccurrences:
+        if jt.read_component_joints(occurrence.component):
+            jointed.append(occurrence.fullPathName)
+    root_joints = len(jt.read_component_joints(design.rootComponent))
+
+    models = []
+    try:
+        for index in range(setup.models.count):
+            models.append(_describe_model(setup.models.item(index)))
+    except Exception:
+        models.append('(could not read setup models)')
+
+    lines = []
+    if not jointed and not root_joints:
+        lines.append('No joints are stored anywhere in this design. Re-run Define Joints and press OK.')
+    else:
+        lines.append(
+            f'Joints exist on {len(jointed)} part(s), but none are in this setup\'s models.'
+        )
+        if root_joints:
+            lines.append(
+                f'{root_joints} joint(s) are on the root component – parts must be components.'
+            )
+        lines.append('Jointed: ' + ', '.join(path.split('+')[-1] for path in jointed[:8]))
+    lines.append('Setup models: ' + ('; '.join(models[:6]) if models else '(none – whole design)'))
+
+    adsk.core.Application.get().log(
+        f'{TITLE} diagnose:\n  jointed occurrences: {jointed}\n'
+        f'  root joints: {root_joints}\n  setup models: {models}\n'
+        f'  active design: {design.parentDocument.name if design.parentDocument else "?"}'
+    )
+    return lines
 
 
 def plan_connectors(design, setup):
@@ -194,9 +268,16 @@ def _depth_axis(setup, flip):
 
 
 def generate(cam, design, setup, options, jobs):
-    """Create sketches + operations for planned jobs. Returns counts dict."""
-    component, clamex_occurrence, in_setup = ensure_clamex_in_setup(design, setup)
-    counts = {'edge': 0, 'face': 0, 'drill': 0, 'in_setup': in_setup}
+    """Design-side half of generation: the Clamex component + every sketch.
+
+    Returns pending. Each pending entry is (kind, display name,
+    sketch entity tokens) with kind 'edge' / 'face' / 'drill'; the CAM
+    operations are created later by create_operations(), after the command
+    transaction has committed. Setups that live in a CAM-side assembly only see
+    design changes once committed; handing CAM uncommitted sketch geometry
+    crashes Fusion in applyCurveSelections.
+    """
+    component, _occurrence = get_or_create_clamex_component(design)
 
     edge_tool = find_tool_by_description(cam, options['edge_tool'])
     face_tool = find_tool_by_description(cam, options['face_tool'])
@@ -204,6 +285,9 @@ def generate(cam, design, setup, options, jobs):
 
     edge_jobs = [job for job in jobs if job['role'] == jt.ROLE_EDGE]
     face_jobs = [job for job in jobs if job['role'] == jt.ROLE_FACE]
+
+    # Each pending entry: (kind, display name, tool, sketch entities, preset).
+    pending = []
 
     if edge_jobs:
         if not edge_tool:
@@ -232,29 +316,22 @@ def generate(cam, design, setup, options, jobs):
             except ValueError as exc:
                 raise RuntimeError(str(exc)) from exc
             _sketch, lines = create_feed_path_sketch(component, job['name'], world_points)
-            create_trace_operation(
-                setup,
-                cam,
-                operation_display_name(job['name'], prefix),
-                edge_tool,
-                geometry_for_assembly(lines, clamex_occurrence),
-                preset,
+            pending.append(
+                ('edge', operation_display_name(job['name'], prefix), edge_tool, lines, preset)
             )
-            counts['edge'] += 1
 
             if drill_tool:
                 hole = drill_hole_point_at(job['point'], job['feed'], connector_type)
                 _drill_sketch, point = create_drill_point_sketch(component, job['name'], hole)
-                create_drill_operation(
-                    setup,
-                    cam,
-                    operation_display_name(job['name'], f'{prefix} – Drill'),
-                    drill_tool,
-                    [point_for_assembly(point, clamex_occurrence)],
-                    options['clearance_mm'],
-                    drill_preset,
+                pending.append(
+                    (
+                        'drill',
+                        operation_display_name(job['name'], f'{prefix} – Drill'),
+                        drill_tool,
+                        point,
+                        drill_preset,
+                    )
                 )
-                counts['drill'] += 1
 
     if face_jobs:
         if not face_tool:
@@ -267,15 +344,69 @@ def generate(cam, design, setup, options, jobs):
                 job['point'], job['feed'], depth_axis, flat_point_chain(connector_type)
             )
             _sketch, lines = create_flat_path_sketch(component, job['name'], world_points)
+            pending.append(
+                (
+                    'face',
+                    operation_display_name(job['name'], default_flat_op_prefix(connector_type)),
+                    face_tool,
+                    lines,
+                    preset,
+                )
+            )
+
+    tokens = []
+    for kind, display_name, tool, entities, _preset in pending:
+        items = [entities] if kind == 'drill' else list(entities)
+        tokens.append((kind, display_name, [item.entityToken for item in items]))
+    return tokens
+
+
+def _resolve(design, token):
+    found = design.findEntityByToken(token)
+    if not found:
+        raise RuntimeError('A Clamex sketch disappeared before its operation was created.')
+    return found[0]
+
+
+def create_operations(cam, design, setup, options, pending):
+    """CAM-side half: Clamex into the setup, then one Trace / Drill per pending entry."""
+    resolved = [
+        (kind, display_name, [_resolve(design, token) for token in tokens])
+        for kind, display_name, tokens in pending
+    ]
+    # Use the component the sketches really live in, never a second name lookup.
+    sketch_component = resolved[0][2][0].parentSketch.parentComponent if resolved else None
+    _component, clamex_occurrence, in_setup = ensure_clamex_in_setup(
+        design, setup, sketch_component
+    )
+    counts = {'edge': 0, 'face': 0, 'drill': 0, 'in_setup': in_setup}
+    tools = {
+        'edge': find_tool_by_description(cam, options['edge_tool']),
+        'face': find_tool_by_description(cam, options['face_tool']),
+        'drill': find_tool_by_description(cam, options['drill_tool']) if options['drill'] else None,
+    }
+    presets = {kind: default_tool_preset(tool) if tool else None for kind, tool in tools.items()}
+    for kind, display_name, entities in resolved:
+        if kind == 'drill':
+            create_drill_operation(
+                setup,
+                cam,
+                display_name,
+                tools['drill'],
+                [point_for_assembly(entities[0], clamex_occurrence)],
+                options['clearance_mm'],
+                presets['drill'],
+            )
+        else:
             create_trace_operation(
                 setup,
                 cam,
-                operation_display_name(job['name'], default_flat_op_prefix(connector_type)),
-                face_tool,
-                geometry_for_assembly(lines, clamex_occurrence),
-                preset,
+                display_name,
+                tools[kind],
+                geometry_for_assembly(entities, clamex_occurrence),
+                presets[kind],
             )
-            counts['face'] += 1
+        counts[kind] += 1
     return counts
 
 
@@ -365,10 +496,14 @@ def _refresh_plan(inputs, state):
     faces = sum(1 for job in state.jobs if job['role'] == jt.ROLE_FACE)
     lines = [f'Ready: <b>{edges}</b> Edge slot(s), <b>{faces}</b> Face cavit(ies).']
     if not state.jobs and not state.problems:
-        lines.append(
-            'No joints found on the parts in this setup. Define joints in the Design '
-            'workspace first.'
-        )
+        try:
+            lines.extend(diagnose_no_joints(design, setup))
+        except Exception:
+            adsk.core.Application.get().log(f'{TITLE} diagnose: {traceback.format_exc()}')
+            lines.append(
+                'No joints found on the parts in this setup. Define joints in the Design '
+                'workspace first.'
+            )
     if state.problems:
         lines.append(f'<b>Skipped {len(state.problems)}:</b>')
         lines.extend(state.problems[:12])
@@ -453,6 +588,7 @@ def handle_command_created(args, handlers):
         ):
             event.add(handler)
             handlers.append(handler)
+        _register_create_ops_event(handlers)
     except UserFacingError as exc:
         ui.messageBox(str(exc), TITLE)
     except Exception:
@@ -510,11 +646,14 @@ class _ValidateHandler(adsk.core.ValidateInputsEventHandler):
 
 
 class _ExecuteHandler(adsk.core.CommandEventHandler):
+    """Design-side work only; queues the CAM operations for after commit."""
+
     def __init__(self, state):
         super().__init__()
         self._state = state
 
     def notify(self, args):
+        global _pending_run
         app = adsk.core.Application.get()
         ui = app.userInterface
         try:
@@ -525,8 +664,11 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
             setup = _find_setup(cam, options['setup_name'])
             if not setup:
                 raise RuntimeError(f'Setup "{options["setup_name"]}" was not found.')
-            jobs, problems, notes = plan_connectors(design, setup)
-            counts = generate(cam, design, setup, options, jobs)
+            trace_log.start(f'{TITLE} execute: setup {setup.name}')
+            jobs, problems, _notes = plan_connectors(design, setup)
+            trace_log.step(f'planned {len(jobs)} job(s); creating sketches')
+            pending = generate(cam, design, setup, options, jobs)
+            trace_log.step(f'sketches done; queueing {len(pending)} operation(s)')
 
             save_settings(
                 _addin_dir(),
@@ -545,6 +687,49 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
                 },
             )
 
+            _pending_run = {
+                'options': options,
+                'pending': pending,
+                'problems': problems,
+            }
+            app.fireCustomEvent(CREATE_OPS_EVENT_ID, '')
+        except RuntimeError as exc:
+            trace_log.step(f'runtime error: {exc}')
+            ui.messageBox(str(exc), TITLE)
+        except Exception:
+            trace_log.step(f'python error: {traceback.format_exc()}')
+            ui.messageBox(f'{TITLE} failed:\n{traceback.format_exc()}', TITLE)
+
+
+# --- post-commit operation creation ------------------------------------------
+
+CREATE_OPS_EVENT_ID = 'LamelloPSystemCNC_JointGenerateCreateOps'
+_pending_run = None
+_create_ops_event = None
+
+
+class _CreateOpsHandler(adsk.core.CustomEventHandler):
+    """Runs after Generate's transaction commits, so CAM sees the new sketches."""
+
+    def notify(self, args):
+        global _pending_run
+        run, _pending_run = _pending_run, None
+        if not run:
+            return
+        app = adsk.core.Application.get()
+        ui = app.userInterface
+        try:
+            options = run['options']
+            cam = _cam()
+            design = _design()
+            setup = _find_setup(cam, options['setup_name']) if cam else None
+            if not setup or not design:
+                raise RuntimeError(f'Setup "{options["setup_name"]}" was not found.')
+            trace_log.step('post-commit: creating operations')
+            counts = create_operations(cam, design, setup, options, run['pending'])
+            trace_log.step(f'finished {counts}')
+
+            problems = run['problems']
             message = [
                 f'Created {counts["edge"]} Edge and {counts["face"]} Face Trace operation(s).'
             ]
@@ -559,6 +744,23 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
                 message.append(ADD_TO_SETUP_HINT)
             ui.messageBox('\n'.join(message), TITLE)
         except RuntimeError as exc:
+            trace_log.step(f'runtime error: {exc}')
             ui.messageBox(str(exc), TITLE)
         except Exception:
+            trace_log.step(f'python error: {traceback.format_exc()}')
             ui.messageBox(f'{TITLE} failed:\n{traceback.format_exc()}', TITLE)
+
+
+def _register_create_ops_event(handlers):
+    """(Re-)register the post-commit custom event; survives add-in reloads."""
+    global _create_ops_event
+    app = adsk.core.Application.get()
+    try:
+        app.unregisterCustomEvent(CREATE_OPS_EVENT_ID)
+    except Exception:
+        pass
+    _create_ops_event = app.registerCustomEvent(CREATE_OPS_EVENT_ID)
+    handler = _CreateOpsHandler()
+    _create_ops_event.add(handler)
+    handlers.append(handler)
+

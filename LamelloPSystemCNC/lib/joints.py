@@ -295,6 +295,42 @@ def save_joint(design, draft, connector_type, end_offset_mm, count):
     return joint_id, world_points, warning
 
 
+# --- inventory (Manage Joints) ----------------------------------------------
+
+def collect_joints(design):
+    """Every stored joint in the design, both halves paired by id.
+
+    Returns a list of dicts sorted by label: id, label, connector_type, count,
+    edge / face ((component, record) or None) and broken (a half is missing,
+    e.g. its part was deleted or re-made).
+    """
+    by_id = {}
+    for component in design.allComponents:
+        for record in read_component_joints(component):
+            joint_id = record.get('id')
+            role = record.get('role')
+            if not joint_id or role not in (ROLE_EDGE, ROLE_FACE):
+                continue
+            entry = by_id.setdefault(joint_id, {'id': joint_id, ROLE_EDGE: None, ROLE_FACE: None})
+            entry[role] = (component, record)
+
+    joints = []
+    for entry in by_id.values():
+        edge, face = entry[ROLE_EDGE], entry[ROLE_FACE]
+        record = (edge or face)[1]
+        edge_name = edge[0].name if edge else face[1].get('partner') or '?'
+        face_name = face[0].name if face else edge[1].get('partner') or '?'
+        entry.update(
+            label=f'{edge_name} → {face_name}',
+            connector_type=record.get('connector_type') or '',
+            count=len(record.get('connectors') or []),
+            broken=edge is None or face is None,
+        )
+        joints.append(entry)
+    joints.sort(key=lambda j: (j['label'], j['id']))
+    return joints
+
+
 # --- world placements for an occurrence --------------------------------------
 
 def occurrence_connectors(occurrence):

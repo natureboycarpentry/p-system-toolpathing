@@ -8,6 +8,7 @@ Commands:
 - Manual toolpaths (Manufacture > Milling > 3D): the original Setup / Edge / Face dialog.
 - Generate from Joints (Manufacture > Milling > 3D): machine joints stored on parts.
 - Define Joints (Design > Solid > Assemble): pick two touching faces to store a joint.
+- Manage Joints (Design > Solid > Assemble): list, highlight and delete stored joints.
 """
 
 import importlib
@@ -23,6 +24,7 @@ ADDIN_TITLE = 'Lamello P-System'
 
 JOINTS_GENERATE_CMD_ID = 'LamelloGenerateFromJointsCmd'
 DEFINE_JOINTS_CMD_ID = 'LamelloDefineJointsCmd'
+MANAGE_JOINTS_CMD_ID = 'LamelloManageJointsCmd'
 
 # Panel spec: (candidate panel ids, workspace id, panel names to match, fallback id).
 # Ids are tried first, then a panel in the workspace whose name matches, then the
@@ -67,6 +69,16 @@ COMMANDS = (
             'joint follows the parts through Arrange'
         ),
         'module': 'commands.define_joints.command',
+        'panel': _DESIGN_ASSEMBLE_PANEL,
+    },
+    {
+        'id': MANAGE_JOINTS_CMD_ID,
+        'name': 'Lamello – Manage Joints',
+        'description': (
+            'List every Lamello joint in the design, highlight one on the canvas, and '
+            'delete joints you no longer need (including broken ones)'
+        ),
+        'module': 'commands.manage_joints.command',
         'panel': _DESIGN_ASSEMBLE_PANEL,
     },
 )

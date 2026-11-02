@@ -27,6 +27,7 @@ FORBIDDEN_AFTER_ENTRY = (
     'commands.generate_clamex.dialog',
     'commands.define_joints.command',
     'commands.joint_generate.command',
+    'commands.manage_joints.command',
     'lib.joints',
     'lib.joint_preview',
     'lib.joint_math',
