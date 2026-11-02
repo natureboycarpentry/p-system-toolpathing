@@ -1,0 +1,10 @@
+{
+    "autodeskProduct": "Fusion360",
+    "type": "script",
+    "author": "NatureBoy Carpentry",
+    "description": {
+        "": "Spike: check that component-stored joint data survives Design-workspace Arrange."
+    },
+    "supportedOS": "windows|mac",
+    "editEnabled": true
+}

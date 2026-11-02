@@ -47,7 +47,22 @@ The command **Lamello P-System CNC Toolpath Addin** is pinned on the **Manufactu
 
    **Preview** — a global checkbox below the tabs toggles the live preview sketches for the active milling tab (drawn under **Clamex Toolpaths**). Every input has a tooltip explaining what it does.
 
-5. Click **OK** to generate operations for the **active milling tab** only (Edge or Face, whichever you last had open).
+5. Click **OK** to generate operations for every milling tab with at least one complete placement set (Edge, Face, or both). A tab with partial selections keeps OK greyed until it is completed or cleared.
+
+## Joint workflow (no sketch points)
+
+Instead of drawing anchor points, define joints once on the **assembled** model; they follow each part through **Modify → Arrange** in the Design workspace.
+
+1. **Design → UTILITIES → ADD-INS → Lamello – Define Joints.** Each panel must be its own component.
+2. Select the two touching faces: the **end face** of the panel that gets the Edge slot and the **face** it sits against (order doesn't matter, the smaller face is the edge; tick **Swap edge / face** if needed).
+3. Choose **Connector type**, **End offset** (default 100 mm, drag the arrow or type) and **Connectors** (count, evenly spaced between the end offsets). The preview shows the Edge cut (orange), Face cavity (blue), joint line (green) and key-hole axis (red); joints already saved show as grey markers.
+4. **Save joint.** Re-selecting the same faces later edits that joint (or tick **Delete this joint**). Right-click → *Repeat* to define the next one.
+5. Arrange as usual. Arrange copies the components, so the stored joints come along.
+6. **Manufacture → ADD-INS → Lamello – Generate from Joints.** Pick the setup (containing the Arrange layout and the **Clamex Toolpaths** component) and tools, then **Generate**. Each connector becomes `{prefix} – {part} – {partner} {n}` Trace ops (+ optional Drill ops).
+
+Checks: an Edge part must lie flat; a Face cavity must face the setup's +Z. Parts Arrange laid face-down are skipped and listed, so flip them in the arrangement or machine them in a second setup. Key holes are drilled from the top face, so check that's the face you want them on.
+
+Joints are stored per component: identical copies of one component share their joints.
 
 ## What the add-in creates
 

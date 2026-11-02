@@ -25,6 +25,11 @@ ADDIN = ROOT / 'LamelloPSystemCNC'
 FORBIDDEN_AFTER_ENTRY = (
     'commands.generate_clamex.command',
     'commands.generate_clamex.dialog',
+    'commands.define_joints.command',
+    'commands.joint_generate.command',
+    'lib.joints',
+    'lib.joint_preview',
+    'lib.joint_math',
     'lib.cam_ops',
     'lib.path_geometry',
     'lib.preview',
