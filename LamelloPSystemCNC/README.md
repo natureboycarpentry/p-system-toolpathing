@@ -58,7 +58,7 @@ Instead of drawing anchor points, define joints once on the **assembled** model;
 3. Choose **Connector type**, **End offset** (default 100 mm, drag the arrow or type) and **Connectors** (count, evenly spaced between the end offsets). The preview shows the Edge cut (orange), Face cavity (blue), joint line (green) and key-hole axis (red); joints already saved show as grey markers.
 4. **Save joint.** Re-selecting the same faces later edits that joint (or tick **Delete this joint**). Right-click → *Repeat* to define the next one.
 5. Arrange as usual. Arrange copies the components, so the stored joints come along.
-6. **Manufacture → MILLING → 3D → Lamello – Generate from Joints.** Pick the setup (containing the Arrange layout and the **Clamex Toolpaths** component) and tools, then **Generate**. Each connector becomes `{prefix} – {part} – {partner} {n}` Trace ops (+ optional Drill ops).
+6. **Manufacture → MILLING → 3D → Lamello – Generate from Joints.** Pick the setup (containing the Arrange layout; the **Clamex Toolpaths** component is added to its models automatically) and tools, then **Generate**. Each connector becomes `{prefix} – {part} – {partner} {n}` Trace ops (+ optional Drill ops).
 
 Checks: an Edge part must lie flat; a Face cavity must face the setup's +Z. Parts Arrange laid face-down are skipped and listed, so flip them in the arrangement or machine them in a second setup. Key holes are drilled from the top face, so check that's the face you want them on.
 
@@ -97,4 +97,4 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for module layout, naming conventions, se
 - **Preview not visible:** Check the **Preview** checkbox at the bottom of the dialog, then check **Clamex Toolpaths** for `__Preview__` sketches; ensure the component light bulb is on.
 - **Error on OK / grey OK:** OK stays disabled until the **active** milling tab has at least one valid set (anchors + cut-in face on Edge, or anchors + feed axis on Face), and Setup and that tab's tool are selected on the **Setup** tab. Edge with drill enabled also needs a Drill tool there.
 - **Toolpath in wrong place:** Select the correct tab and set row; adjust the cut-in face / feed axis, **Flip feed**, or **Flip Z**.
-- **Geometry not found in CAM:** Ensure the setup includes the **Clamex Toolpaths** component.
+- **Geometry not found in CAM:** Both commands add the **Clamex Toolpaths** component to the setup's models automatically. If Fusion refuses, the result message says so: edit the setup and ⌘/Ctrl-click **Clamex Toolpaths** under **Model**.

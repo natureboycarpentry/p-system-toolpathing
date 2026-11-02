@@ -73,6 +73,70 @@ def get_or_create_clamex_component(design):
     return occ.component, occ
 
 
+def _setup_model_paths(design, setup):
+    """(include_all, set of occurrence fullPathNames) covered by the setup's models.
+
+    An empty model list or the root component counts as "everything".
+    """
+    root = design.rootComponent
+    paths = set()
+    try:
+        models = setup.models
+    except Exception:
+        models = None
+    if not models or models.count == 0:
+        return True, paths
+    include_all = False
+    for index in range(models.count):
+        model = models.item(index)
+        occurrence = adsk.fusion.Occurrence.cast(model)
+        if occurrence:
+            paths.add(occurrence.fullPathName)
+            continue
+        body = adsk.fusion.BRepBody.cast(model)
+        if body:
+            if body.assemblyContext:
+                paths.add(body.assemblyContext.fullPathName)
+            continue
+        component = adsk.fusion.Component.cast(model)
+        if component and component == root:
+            include_all = True
+    return include_all, paths
+
+
+def setup_includes_occurrence(design, setup, occurrence):
+    include_all, paths = _setup_model_paths(design, setup)
+    return include_all or occurrence.fullPathName in paths
+
+
+def ensure_clamex_in_setup(design, setup):
+    """Create the Clamex Toolpaths component if needed and add it to the setup's models.
+
+    CAM only accepts sketch geometry from models in the setup. Existing model
+    selections are kept. Returns (component, occurrence, ok) where ok is False
+    when Fusion refused the change (the caller should tell the user).
+    """
+    component, occurrence = get_or_create_clamex_component(design)
+    if setup_includes_occurrence(design, setup, occurrence):
+        return component, occurrence, True
+    try:
+        models = setup.models
+        collection = adsk.core.ObjectCollection.create()
+        for index in range(models.count):
+            collection.add(models.item(index))
+        collection.add(occurrence)
+        setup.models = collection
+    except Exception:
+        return component, occurrence, False
+    return component, occurrence, setup_includes_occurrence(design, setup, occurrence)
+
+
+ADD_TO_SETUP_HINT = (
+    f'Could not add "{CLAMEX_COMPONENT_NAME}" to the setup automatically. Edit the setup, '
+    f'and on the Setup tab ⌘/Ctrl-click "{CLAMEX_COMPONENT_NAME}" under Model, then regenerate.'
+)
+
+
 def _delete_sketch_by_name(component, sketch_name):
     sketch = component.sketches.itemByName(sketch_name)
     if sketch:

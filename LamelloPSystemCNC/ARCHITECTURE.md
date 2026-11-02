@@ -192,7 +192,7 @@ Run after code changes in Fusion Manufacture:
 - [ ] With one tab complete and the other empty, OK generates only the complete tab
 - [ ] With one tab complete and the other partially selected (e.g. anchors but no feed axis), OK switches to the incomplete tab, shows the error, and creates nothing
 - [ ] Settings persist (`setup_name`, tools, flip flags, `preview_enabled`) across command runs
-- [ ] Setup must include the **Clamex Toolpaths** component for CAM geometry assignment
+- [ ] Generating with a setup whose models exclude **Clamex Toolpaths** adds it automatically (`path_geometry.ensure_clamex_in_setup`, via read/write `Setup.models`); existing model selections are kept
 - [ ] **Define Joints** (Design): pick shelf end + side face → preview shows orange Edge arc in the shelf, blue cavity in the side, connectors at the end offsets; drag the End offset arrow
 - [ ] Save, re-run on the same faces → "already exists" note; change count → replaces; Delete removes
 - [ ] Arrange → **Generate from Joints** lists the right counts; face-down cavities are listed as skipped

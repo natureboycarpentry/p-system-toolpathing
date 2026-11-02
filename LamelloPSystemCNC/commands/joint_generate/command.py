@@ -39,12 +39,14 @@ from lib.example_tools import (
     prompt_add_example_tools_if_empty,
 )
 from lib.path_geometry import (
+    ADD_TO_SETUP_HINT,
     CLAMEX_COMPONENT_NAME,
+    _setup_model_paths,
     create_drill_point_sketch,
     create_feed_path_sketch,
     create_flat_path_sketch,
     geometry_for_assembly,
-    get_or_create_clamex_component,
+    ensure_clamex_in_setup,
     point_for_assembly,
 )
 from lib.settings import load_settings, save_settings
@@ -97,34 +99,6 @@ def _design():
 
 
 # --- planning ---------------------------------------------------------------
-
-def _setup_model_paths(design, setup):
-    """(include_all, set of occurrence fullPathNames) for the setup's models."""
-    root = design.rootComponent
-    paths = set()
-    try:
-        models = setup.models
-    except Exception:
-        models = None
-    if not models or models.count == 0:
-        return True, paths
-    include_all = False
-    for index in range(models.count):
-        model = models.item(index)
-        occurrence = adsk.fusion.Occurrence.cast(model)
-        if occurrence:
-            paths.add(occurrence.fullPathName)
-            continue
-        body = adsk.fusion.BRepBody.cast(model)
-        if body:
-            if body.assemblyContext:
-                paths.add(body.assemblyContext.fullPathName)
-            continue
-        component = adsk.fusion.Component.cast(model)
-        if component and component == root:
-            include_all = True
-    return include_all, paths
-
 
 def _in_paths(occurrence, paths):
     segments = occurrence.fullPathName.split('+')
@@ -205,8 +179,7 @@ def plan_connectors(design, setup):
         path.split('+')[-1].startswith(CLAMEX_COMPONENT_NAME) for path in paths
     ):
         notes.append(
-            f'Add the "{CLAMEX_COMPONENT_NAME}" component to this setup\'s models so CAM '
-            'can use the generated path sketches.'
+            f'"{CLAMEX_COMPONENT_NAME}" will be added to this setup\'s models automatically.'
         )
     return jobs, problems, notes
 
@@ -222,8 +195,8 @@ def _depth_axis(setup, flip):
 
 def generate(cam, design, setup, options, jobs):
     """Create sketches + operations for planned jobs. Returns counts dict."""
-    component, clamex_occurrence = get_or_create_clamex_component(design)
-    counts = {'edge': 0, 'face': 0, 'drill': 0}
+    component, clamex_occurrence, in_setup = ensure_clamex_in_setup(design, setup)
+    counts = {'edge': 0, 'face': 0, 'drill': 0, 'in_setup': in_setup}
 
     edge_tool = find_tool_by_description(cam, options['edge_tool'])
     face_tool = find_tool_by_description(cam, options['face_tool'])
@@ -582,7 +555,8 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
                 message.extend(problems[:15])
                 if len(problems) > 15:
                     message.append(f'… and {len(problems) - 15} more')
-            message.extend(notes)
+            if not counts['in_setup']:
+                message.append(ADD_TO_SETUP_HINT)
             ui.messageBox('\n'.join(message), TITLE)
         except RuntimeError as exc:
             ui.messageBox(str(exc), TITLE)
