@@ -7,9 +7,8 @@ lazily (importlib) when a command is first invoked.
 Commands:
 - Manual toolpaths (Manufacture > Milling > 3D): the original Setup / Edge / Face dialog.
 - Generate from Joints (Manufacture > Milling > 3D): machine joints stored on parts.
-- Define Joints (Design > Solid > Assemble): pick two touching faces to store a joint.
-- Manage Joints (Design > Solid > Assemble): list, highlight and delete stored joints.
-- Find Joints (Design > Solid > Assemble): detect every touching panel end in a selection.
+- Joints (Design > Solid > Assemble): one dialog with Define (pick two faces),
+  Find (detect every touching panel end) and Manage (list / delete) tabs.
 """
 
 import importlib
@@ -24,9 +23,11 @@ CMD_DESC = 'Generate Lamello P-System connector toolpaths at selected anchor poi
 ADDIN_TITLE = 'Lamello P-System'
 
 JOINTS_GENERATE_CMD_ID = 'LamelloGenerateFromJointsCmd'
-DEFINE_JOINTS_CMD_ID = 'LamelloDefineJointsCmd'
-MANAGE_JOINTS_CMD_ID = 'LamelloManageJointsCmd'
-FIND_JOINTS_CMD_ID = 'LamelloFindJointsCmd'
+# The tabbed Joints command keeps the original Define Joints id so a pinned
+# button keeps working.
+JOINTS_CMD_ID = 'LamelloDefineJointsCmd'
+# Separate Find / Manage buttons from earlier builds; removed on start.
+LEGACY_CMD_IDS = ('LamelloFindJointsCmd', 'LamelloManageJointsCmd')
 
 # Panel spec: (candidate panel ids, workspace id, panel names to match, fallback id).
 # Ids are tried first, then a panel in the workspace whose name matches, then the
@@ -64,33 +65,14 @@ COMMANDS = (
         'panel': _CAM_3D_PANEL,
     },
     {
-        'id': DEFINE_JOINTS_CMD_ID,
-        'name': 'Lamello – Define Joints',
+        'id': JOINTS_CMD_ID,
+        'name': 'Lamello – Joints',
         'description': (
-            'Pick two touching panel faces to place Lamello P-System connectors; the '
-            'joint follows the parts through Arrange'
+            'Define, find and manage Lamello P-System joints: pick two touching faces, '
+            'detect every touching panel end in a selection, or list and delete stored '
+            'joints. Joints follow the parts through Arrange.'
         ),
-        'module': 'commands.define_joints.command',
-        'panel': _DESIGN_ASSEMBLE_PANEL,
-    },
-    {
-        'id': FIND_JOINTS_CMD_ID,
-        'name': 'Lamello – Find Joints',
-        'description': (
-            'Select components (or nothing for the whole assembly) and find every place a '
-            'panel end touches another panel, then save them all as Lamello joints'
-        ),
-        'module': 'commands.find_joints.command',
-        'panel': _DESIGN_ASSEMBLE_PANEL,
-    },
-    {
-        'id': MANAGE_JOINTS_CMD_ID,
-        'name': 'Lamello – Manage Joints',
-        'description': (
-            'List every Lamello joint in the design, highlight one on the canvas, and '
-            'delete joints you no longer need (including broken ones)'
-        ),
-        'module': 'commands.manage_joints.command',
+        'module': 'commands.joints.command',
         'panel': _DESIGN_ASSEMBLE_PANEL,
     },
 )
@@ -188,6 +170,8 @@ def start():
     ui = adsk.core.Application.get().userInterface
     # Recreate definitions each start so a stale definition (old name, old icon,
     # stacked commandCreated handlers) never survives a reload.
+    for cmd_id in LEGACY_CMD_IDS:
+        _remove_command(ui, {'id': cmd_id, 'panel': _DESIGN_ASSEMBLE_PANEL})
     for spec in COMMANDS:
         _remove_command(ui, spec)
         _add_command(ui, spec)

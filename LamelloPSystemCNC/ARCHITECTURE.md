@@ -61,10 +61,11 @@ execute (OK)
 | `lib/example_tools.py` | Bundled Lamello sample tools for the document library |
 | `lib/joint_math.py` | Pure-Python joint geometry (frame from two faces, connector layout, outlines); unit-tested in `tests/` |
 | `lib/joints.py` | Joint records as component attributes (component-local mm); face-pair analysis; map stored connectors through `occurrence.transform2` |
-| `lib/joint_preview.py` | Custom-graphics preview for Define Joints |
-| `commands/define_joints/command.py` | Design-workspace **Define Joints** command |
-| `commands/find_joints/command.py` | Design-workspace **Find Joints** command (detect touching panel ends in a selection or the whole assembly, review, save in bulk) |
-| `commands/manage_joints/command.py` | Design-workspace **Manage Joints** command (list, highlight, delete stored joints; flags broken halves) |
+| `lib/joint_preview.py` | Custom-graphics preview for the Joints tabs |
+| `commands/joints/command.py` | Design-workspace **Lamello – Joints** command: one dialog with Define / Find / Manage tabs; routes events to the active tab |
+| `commands/define_joints/command.py` | **Define** tab: pick two touching faces for one joint |
+| `commands/find_joints/command.py` | **Find** tab: detect touching panel ends in a selection or the whole assembly, review, save in bulk |
+| `commands/manage_joints/command.py` | **Manage** tab: list, highlight and delete stored joints; flags broken halves |
 | `commands/joint_generate/command.py` | Manufacture **Generate from Joints** command (plan, orientation checks, generation) |
 
 ## Dialog layout
@@ -108,7 +109,7 @@ Generation runs for **every milling tab with at least one complete placement set
 
 ## Joint workflow
 
-Three commands are registered in `entry.py` (`COMMANDS`): the manual dialog and **Generate from Joints** on Manufacture → MILLING → 3D, and **Define Joints** on Design → SOLID → ASSEMBLE. `_find_panel` tries known panel ids, then a workspace panel named "3D"/"Assemble", then falls back to that workspace's ADD-INS panel. All load lazily via `importlib`.
+Three commands are registered in `entry.py` (`COMMANDS`): the manual dialog and **Generate from Joints** on Manufacture → MILLING → 3D, and **Lamello – Joints** (Define / Find / Manage tabs, id kept as `LamelloDefineJointsCmd`) on Design → SOLID → ASSEMBLE. `LEGACY_CMD_IDS` removes the separate Find / Manage buttons of earlier builds. `_find_panel` tries known panel ids, then a workspace panel named "3D"/"Assemble", then falls back to that workspace's ADD-INS panel. All load lazily via `importlib`.
 
 **Storage.** A joint = two touching planar faces on the assembled model. Each half is a JSON attribute on its own component (`group LamelloPSystemCNC`, name `joint:<id>`), in component-local mm:
 
@@ -195,7 +196,9 @@ Run after code changes in Fusion Manufacture:
 - [ ] With one tab complete and the other partially selected (e.g. anchors but no feed axis), OK switches to the incomplete tab, shows the error, and creates nothing
 - [ ] Settings persist (`setup_name`, tools, flip flags, `preview_enabled`) across command runs
 - [ ] Generating with a setup whose models exclude **Clamex Toolpaths** adds it automatically (`path_geometry.ensure_clamex_in_setup`, via read/write `Setup.models`); existing model selections are kept
-- [ ] **Define Joints** (Design): pick shelf end + side face → preview shows orange Edge arc in the shelf, blue cavity in the side, connectors at the end offsets; drag the End offset arrow
+- [ ] **Joints → Find** (Design): nothing selected lists every panel-end joint; existing ones unticked; OK saves the ticked ones
+- [ ] **Joints → Manage**: rows highlight on select; ticked rows red; OK deletes; broken joints flagged and pre-ticked
+- [ ] **Joints → Define** (Design): pick shelf end + side face → preview shows orange Edge arc in the shelf, blue cavity in the side, connectors at the end offsets; drag the End offset arrow
 - [ ] Save, re-run on the same faces → "already exists" note; change count → replaces; Delete removes
 - [ ] Arrange → **Generate from Joints** lists the right counts; face-down cavities are listed as skipped
 - [ ] Generated Edge slot is centred in the panel thickness and cuts into the edge (not 86 mm into the panel); Face cavity cuts down into the top face

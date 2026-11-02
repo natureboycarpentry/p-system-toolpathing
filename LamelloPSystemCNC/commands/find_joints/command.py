@@ -1,5 +1,5 @@
 """
-Find Joints command (Design workspace).
+Find tab of the Lamello Joints command (Design workspace).
 
 Select components, bodies or faces (or nothing, for the whole assembly) and the
 add-in finds every place a panel end touches another panel's face
@@ -8,10 +8,8 @@ set the connector type / end offset / count once, and OK saves them all as
 joints, exactly as if each had been picked in Define Joints. Joints that
 already exist are listed unticked; ticking one replaces it.
 
-Imported lazily from entry.py.
+Hosted by commands/joints/command.py, which imports it lazily.
 """
-
-import traceback
 
 import adsk.core
 import adsk.fusion
@@ -19,7 +17,6 @@ import adsk.fusion
 from lib import joint_math as jm
 from lib import joint_preview
 from lib import joints as jt
-from lib.errors import UserFacingError
 from lib.path_geometry import CLAMEX_COMPONENT_NAME
 from lib.settings import load_settings, save_settings
 from lib.toolpath_def import DEFAULT_CONNECTOR_TYPE
@@ -31,8 +28,6 @@ from commands.define_joints.command import (
     SETTING_TYPE,
     _preview_edge_cutter_diameter,
 )
-
-TITLE = 'Lamello P-System – Find Joints'
 
 INPUT_PARTS = 'fjParts'
 INPUT_TYPE = 'fjConnectorType'
@@ -51,6 +46,7 @@ class _State:
         self.scanned_parts = 0
         self.whole_assembly = True
         self.generation = 0
+        self.highlight = None  # index of the selected row, or None
         self.edge_cutter_diameter_mm = jm.NOMINAL_EDGE_CUTTER_DIAMETER_MM
 
 
@@ -168,9 +164,11 @@ def _rebuild_table(inputs, state):
         prefix = f'{state.generation}_{index}'
         checkbox = sub.addBoolValueInput(f'{ROW_PREFIX}{prefix}', '', True, '', not existing)
         checkbox.tooltip = 'Tick to save this joint when you press OK.'
-        name = sub.addStringValueInput(f'fjName_{prefix}', '', draft.label())
-        name.isReadOnly = True
-        name.tooltip = 'Edge-slot part → Face-cavity part'
+        # A button, not read-only text: Fusion fires no event for a plain row
+        # click, so the name is what the user clicks to highlight the parts.
+        name = sub.addBoolValueInput(f'fjName_{prefix}', '', False, '', False)
+        name.text = draft.label()
+        name.tooltip = 'Click to highlight the two parts (Edge-slot part → Face-cavity part).'
         detail = f'{draft.frame["length_mm"]:.0f} mm'
         detail += ' · exists' if existing else ' · new'
         info = sub.addStringValueInput(f'fjDetail_{prefix}', '', detail)
@@ -190,6 +188,7 @@ def _rescan(inputs, state):
     design = _design()
     faces = _gather_faces(design, inputs, state)
     state.drafts, state.skipped_faces = jt.find_joint_drafts(faces)
+    state.highlight = None
     state.existing = [jt.find_existing_joint_id(draft) for draft in state.drafts]
     _rebuild_table(inputs, state)
     _update_info(inputs, state)
@@ -214,6 +213,14 @@ def _update_info(inputs, state):
         existing = sum(1 for joint_id in state.existing if joint_id)
         ticked = len(_ticked(inputs, state))
         lines.append(f'Found <b>{len(state.drafts)}</b> joint(s); <b>{ticked}</b> ticked to save.')
+        if state.highlight is not None and state.highlight < len(state.drafts):
+            selected = state.drafts[state.highlight]
+            lines.append(
+                f'Selected: <b>{selected.edge_component.name}</b> (Edge slot, orange) → '
+                f'<b>{selected.face_component.name}</b> (Face cavity, blue).'
+            )
+        else:
+            lines.append('Click a joint\'s name to highlight its two parts.')
         if existing:
             lines.append(f'{existing} already exist and are unticked; tick to replace them.')
         values = _read_values(inputs)
@@ -233,205 +240,149 @@ def _update_info(inputs, state):
     info.formattedText = '<br>'.join(lines)
 
 
-# --- command -------------------------------------------------------------------
+# --- tab interface (hosted by commands/joints/command.py) ------------------------
 
-def handle_command_created(args, handlers):
-    ui = adsk.core.Application.get().userInterface
+LABEL = 'Find'
+TOOLTIP = 'Find every touching panel end in a selection (or the whole assembly) and save them in bulk.'
+
+
+def new_state():
+    state = _State()
+    state.edge_cutter_diameter_mm = _preview_edge_cutter_diameter()
+    return state
+
+
+def build(inputs, state):
+    """Add the Find tab's inputs to *inputs* (the tab's children)."""
+    saved = load_settings()
+
+    parts = inputs.addSelectionInput(
+        INPUT_PARTS, 'Parts', 'Select components, bodies or faces (or nothing for all)'
+    )
+    parts.addSelectionFilter('Occurrences')
+    parts.addSelectionFilter('SolidBodies')
+    parts.addSelectionFilter('PlanarFaces')
+    parts.setSelectionLimits(0, 0)
+    parts.tooltip = (
+        'Components (pick them in the browser), bodies or faces to search for joints. '
+        'Leave empty to search the whole assembly.'
+    )
+
+    connector = inputs.addDropDownCommandInput(
+        INPUT_TYPE, 'Connector type', adsk.core.DropDownStyles.TextListDropDownStyle
+    )
+    connector.listItems.add('P14', False, '')
+    connector.listItems.add('P10', False, '')
+    select_dropdown(connector, saved.get(SETTING_TYPE, DEFAULT_CONNECTOR_TYPE))
+
+    end_offset_mm = float(saved.get(SETTING_END_OFFSET, jm.DEFAULT_END_OFFSET_MM))
+    end_offset = inputs.addDistanceValueCommandInput(
+        INPUT_END_OFFSET, 'End offset', adsk.core.ValueInput.createByReal(end_offset_mm / 10.0)
+    )
     try:
-        event_args = adsk.core.CommandCreatedEventArgs.cast(args)
-        cmd = event_args.command
-        if not _design():
-            raise UserFacingError('Switch to the Design workspace to find joints.')
-
-        saved = load_settings()
-        inputs = cmd.commandInputs
-        cmd.okButtonText = 'Save joints'
-
-        parts = inputs.addSelectionInput(
-            INPUT_PARTS, 'Parts', 'Select components, bodies or faces (or nothing for all)'
-        )
-        parts.addSelectionFilter('Occurrences')
-        parts.addSelectionFilter('SolidBodies')
-        parts.addSelectionFilter('PlanarFaces')
-        parts.setSelectionLimits(0, 0)
-        parts.tooltip = (
-            'Components (pick them in the browser), bodies or faces to search for joints. '
-            'Leave empty to search the whole assembly.'
-        )
-
-        connector = inputs.addDropDownCommandInput(
-            INPUT_TYPE, 'Connector type', adsk.core.DropDownStyles.TextListDropDownStyle
-        )
-        connector.listItems.add('P14', False, '')
-        connector.listItems.add('P10', False, '')
-        select_dropdown(connector, saved.get(SETTING_TYPE, DEFAULT_CONNECTOR_TYPE))
-
-        end_offset_mm = float(saved.get(SETTING_END_OFFSET, jm.DEFAULT_END_OFFSET_MM))
-        end_offset = inputs.addDistanceValueCommandInput(
-            INPUT_END_OFFSET, 'End offset', adsk.core.ValueInput.createByReal(end_offset_mm / 10.0)
-        )
-        try:
-            end_offset.minimumValue = 0.0
-            end_offset.isMinimumValueInclusive = True
-        except Exception:
-            pass
-        end_offset.tooltip = 'Distance from each end of every joint to its first and last connector.'
-
-        count = inputs.addIntegerSpinnerCommandInput(
-            INPUT_COUNT,
-            'Connectors',
-            1,
-            jm.MAX_CONNECTOR_COUNT,
-            1,
-            int(saved.get(SETTING_COUNT, jm.DEFAULT_CONNECTOR_COUNT)),
-        )
-        count.tooltip = 'Connectors per joint, evenly spaced between the end offsets.'
-
-        table = inputs.addTableCommandInput(INPUT_TABLE, 'Joints found', 3, '1:7:4')
-        table.maximumVisibleRows = 14
-
-        inputs.addTextBoxCommandInput(INPUT_INFO, '', '', 5, True)
-
-        state = _State()
-        state.edge_cutter_diameter_mm = _preview_edge_cutter_diameter()
-
-        for event, handler in (
-            (cmd.activate, _ActivateHandler(state)),
-            (cmd.inputChanged, _InputChangedHandler(state)),
-            (cmd.validateInputs, _ValidateHandler(state)),
-            (cmd.executePreview, _PreviewHandler(state)),
-            (cmd.execute, _ExecuteHandler(state)),
-            (cmd.destroy, _DestroyHandler()),
-        ):
-            event.add(handler)
-            handlers.append(handler)
-    except UserFacingError as exc:
-        ui.messageBox(str(exc), TITLE)
+        end_offset.minimumValue = 0.0
+        end_offset.isMinimumValueInclusive = True
     except Exception:
-        ui.messageBox(f'{TITLE} failed:\n{traceback.format_exc()}', TITLE)
+        pass
+    end_offset.tooltip = 'Distance from each end of every joint to its first and last connector.'
+
+    count = inputs.addIntegerSpinnerCommandInput(
+        INPUT_COUNT,
+        'Connectors',
+        1,
+        jm.MAX_CONNECTOR_COUNT,
+        1,
+        int(saved.get(SETTING_COUNT, jm.DEFAULT_CONNECTOR_COUNT)),
+    )
+    count.tooltip = 'Connectors per joint, evenly spaced between the end offsets.'
+
+    table = inputs.addTableCommandInput(INPUT_TABLE, 'Joints found', 3, '1:7:4')
+    table.maximumVisibleRows = 14
+
+    inputs.addTextBoxCommandInput(INPUT_INFO, '', '', 5, True)
 
 
-class _ActivateHandler(adsk.core.CommandEventHandler):
-    """Take over whatever was selected before the command started, then scan."""
-
-    def __init__(self, state):
-        super().__init__()
-        self._state = state
-
-    def notify(self, args):
-        try:
-            inputs = adsk.core.CommandEventArgs.cast(args).command.commandInputs
-            sel = adsk.core.SelectionCommandInput.cast(inputs.itemById(INPUT_PARTS))
-            ui = adsk.core.Application.get().userInterface
-            for index in range(ui.activeSelections.count):
-                entity = ui.activeSelections.item(index).entity
-                if (
-                    adsk.fusion.Occurrence.cast(entity)
-                    or adsk.fusion.BRepBody.cast(entity)
-                    or adsk.fusion.BRepFace.cast(entity)
-                ):
-                    sel.addSelection(entity)
-            _rescan(inputs, self._state)
-        except Exception:
-            adsk.core.Application.get().log(f'{TITLE} activate: {traceback.format_exc()}')
+def activate(inputs, state, entities):
+    """Seed the selection with pre-selected parts, then scan."""
+    sel = adsk.core.SelectionCommandInput.cast(inputs.itemById(INPUT_PARTS))
+    for entity in entities:
+        sel.addSelection(entity)
+    _rescan(inputs, state)
 
 
-class _InputChangedHandler(adsk.core.InputChangedEventHandler):
-    def __init__(self, state):
-        super().__init__()
-        self._state = state
-
-    def notify(self, args):
-        try:
-            event_args = adsk.core.InputChangedEventArgs.cast(args)
-            if event_args.input.id == INPUT_PARTS:
-                _rescan(event_args.inputs, self._state)
-            else:
-                _update_info(event_args.inputs, self._state)
-        except Exception:
-            adsk.core.Application.get().log(f'{TITLE} inputChanged: {traceback.format_exc()}')
+def _row_index(inputs, changed, state):
+    """Row the user just clicked: from a row input's id, else the table selection."""
+    if changed.id == INPUT_TABLE:
+        table = adsk.core.TableCommandInput.cast(inputs.itemById(INPUT_TABLE))
+        return table.selectedRow if table else -1
+    if changed.id.startswith(('fjRow_', 'fjName_', 'fjDetail_')):
+        generation, _sep, index = changed.id.split('_', 1)[1].partition('_')
+        if generation == str(state.generation) and index.isdigit():
+            return int(index)
+    return -1
 
 
-class _ValidateHandler(adsk.core.ValidateInputsEventHandler):
-    def __init__(self, state):
-        super().__init__()
-        self._state = state
-
-    def notify(self, args):
-        event_args = adsk.core.ValidateInputsEventArgs.cast(args)
-        event_args.areInputsValid = bool(_ticked(event_args.inputs, self._state))
-
-
-class _PreviewHandler(adsk.core.CommandEventHandler):
-    def __init__(self, state):
-        super().__init__()
-        self._state = state
-
-    def notify(self, args):
-        try:
-            event_args = adsk.core.CommandEventArgs.cast(args)
-            inputs = event_args.command.commandInputs
-            design = _design()
-            joint_preview.clear(design)
-            ticked = _ticked(inputs, self._state)
-            replaced = {joint_id for _draft, joint_id in ticked if joint_id}
-            joint_preview.draw_existing(design, skip_joint_ids=replaced)
-            values = _read_values(inputs)
-            for draft, _joint_id in ticked:
-                world_points, _warning = jt.layout_world_points(
-                    draft, values['end_offset_mm'], values['count']
-                )
-                joint_preview.draw_draft(
-                    design,
-                    draft,
-                    world_points,
-                    values['connector_type'],
-                    self._state.edge_cutter_diameter_mm,
-                )
-            event_args.isValidResult = False
-        except Exception:
-            adsk.core.Application.get().log(f'{TITLE} preview: {traceback.format_exc()}')
+def input_changed(inputs, changed, state):
+    if changed.id == INPUT_PARTS:
+        _rescan(inputs, state)
+        return
+    row = _row_index(inputs, changed, state)
+    if 0 <= row < len(state.drafts):
+        state.highlight = row
+    _update_info(inputs, state)
 
 
-class _ExecuteHandler(adsk.core.CommandEventHandler):
-    def __init__(self, state):
-        super().__init__()
-        self._state = state
-
-    def notify(self, args):
-        app = adsk.core.Application.get()
-        try:
-            inputs = adsk.core.CommandEventArgs.cast(args).command.commandInputs
-            design = _design()
-            joint_preview.clear(design)
-            values = _read_values(inputs)
-            ticked = _ticked(inputs, self._state)
-            for draft, _joint_id in ticked:
-                jt.save_joint(
-                    design, draft, values['connector_type'], values['end_offset_mm'], values['count']
-                )
-            save_settings(
-                global_settings={
-                    SETTING_TYPE: values['connector_type'],
-                    SETTING_END_OFFSET: round(values['end_offset_mm'], 3),
-                    SETTING_COUNT: values['count'],
-                }
-            )
-            replaced = sum(1 for _draft, joint_id in ticked if joint_id)
-            message = f'Saved {len(ticked)} joint(s).'
-            if replaced:
-                message += f' {replaced} replaced an existing joint.'
-            app.userInterface.messageBox(message, TITLE)
-        except Exception:
-            app.userInterface.messageBox(f'{TITLE} failed:\n{traceback.format_exc()}', TITLE)
+def is_valid(inputs, state):
+    return bool(_ticked(inputs, state))
 
 
-class _DestroyHandler(adsk.core.CommandEventHandler):
-    def __init__(self):
-        super().__init__()
+def preview(inputs, state, design):
+    ticked = _ticked(inputs, state)
+    replaced = {joint_id for _draft, joint_id in ticked if joint_id}
+    joint_preview.draw_existing(design, skip_joint_ids=replaced)
+    values = _read_values(inputs)
+    drafts = [draft for draft, _joint_id in ticked]
+    if state.highlight is not None and state.highlight < len(state.drafts):
+        selected = state.drafts[state.highlight]
+        joint_preview.highlight_parts(
+            design,
+            (
+                (selected.edge_face, joint_preview.COLOR_EDGE_CUT),
+                (selected.mate_face, joint_preview.COLOR_FACE_CUT),
+            ),
+        )
+        if selected not in drafts:
+            drafts.append(selected)  # show its connectors even while unticked
+    for draft in drafts:
+        world_points, _warning = jt.layout_world_points(
+            draft, values['end_offset_mm'], values['count']
+        )
+        joint_preview.draw_draft(
+            design,
+            draft,
+            world_points,
+            values['connector_type'],
+            state.edge_cutter_diameter_mm,
+        )
 
-    def notify(self, args):
-        try:
-            joint_preview.clear(_design())
-        except Exception:
-            pass
+
+def execute(inputs, state, design):
+    """Save every ticked joint. Returns the message to show."""
+    values = _read_values(inputs)
+    ticked = _ticked(inputs, state)
+    for draft, _joint_id in ticked:
+        jt.save_joint(
+            design, draft, values['connector_type'], values['end_offset_mm'], values['count']
+        )
+    save_settings(
+        global_settings={
+            SETTING_TYPE: values['connector_type'],
+            SETTING_END_OFFSET: round(values['end_offset_mm'], 3),
+            SETTING_COUNT: values['count'],
+        }
+    )
+    replaced = sum(1 for _draft, joint_id in ticked if joint_id)
+    message = f'Saved {len(ticked)} joint(s).'
+    if replaced:
+        message += f' {replaced} replaced an existing joint.'
+    return message

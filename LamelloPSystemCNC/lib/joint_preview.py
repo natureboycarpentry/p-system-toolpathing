@@ -21,6 +21,7 @@ COLOR_FACE_CUT = (30, 120, 220)
 COLOR_DRILL = (210, 40, 40)
 COLOR_EXISTING = (150, 150, 150)
 COLOR_MARKED = (220, 30, 30)
+PART_HIGHLIGHT_ALPHA = 110
 
 _groups = []
 
@@ -137,6 +138,33 @@ def draw_existing(design, skip_joint_id=None, skip_joint_ids=()):
             _add_polyline(group, [jm.add(p, jm.scale(t, -half_t)), jm.add(p, jm.scale(t, half_t))],
                           COLOR_EXISTING, 3.0)
             _add_polyline(group, [p, jm.add(p, jm.scale(n, -15.0))], COLOR_EXISTING, 3.0)
+    _refresh()
+
+
+def highlight_parts(design, parts):
+    """Tinted overlay of whole part bodies. *parts*: iterable of (face, rgb).
+
+    The face's body is drawn in component space and placed with the face's
+    occurrence transform, so assembled parts light up where they sit.
+    """
+    group = _new_group(design)
+    for face, rgb in parts:
+        try:
+            body = face.body
+            native = body.nativeObject or body
+            graphics = group.addBRepBody(native)
+            occurrence = face.assemblyContext
+            if occurrence:
+                graphics.transform = occurrence.transform2
+            graphics.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(
+                adsk.core.Color.create(rgb[0], rgb[1], rgb[2], PART_HIGHLIGHT_ALPHA)
+            )
+            try:
+                graphics.depthPriority = 1
+            except Exception:
+                pass
+        except Exception:
+            continue
     _refresh()
 
 

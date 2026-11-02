@@ -178,7 +178,7 @@ def diagnose_no_joints(design, setup):
 
     lines = []
     if not jointed and not root_joints:
-        lines.append('No joints are stored anywhere in this design. Re-run Define Joints and press OK.')
+        lines.append('No joints are stored anywhere in this design. Add them with Design → Lamello – Joints.')
     else:
         lines.append(
             f'Joints exist on {len(jointed)} part(s), but none are in this setup\'s models.'

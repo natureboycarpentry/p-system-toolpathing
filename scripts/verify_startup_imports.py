@@ -29,6 +29,7 @@ FORBIDDEN_AFTER_ENTRY = (
     'commands.joint_generate.command',
     'commands.manage_joints.command',
     'commands.find_joints.command',
+    'commands.joints.command',
     'lib.joints',
     'lib.joint_preview',
     'lib.joint_math',

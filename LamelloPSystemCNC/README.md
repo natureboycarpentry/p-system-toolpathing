@@ -19,7 +19,7 @@ If you previously installed the add-in as **ClamexToolpaths**, remove or unlink 
 
 During development, use **Stop** then **Run** to reload code changes — the add-in clears cached Python modules on each cycle. If something still looks stale, delete any `__pycache__` folders inside `LamelloPSystemCNC` and Stop/Run again.
 
-The command **Lamello P-System CNC Toolpath Addin** is on the **Manufacture → MILLING → 3D** panel (with its icon), next to **Lamello – Generate from Joints**. **Lamello – Define Joints** is on **Design → SOLID → ASSEMBLE**. If Fusion renames those panels, the buttons fall back to the ADD-INS panel.
+The command **Lamello P-System CNC Toolpath Addin** is on the **Manufacture → MILLING → 3D** panel (with its icon), next to **Lamello – Generate from Joints**. **Lamello – Joints** (Define / Find / Manage tabs) is on **Design → SOLID → ASSEMBLE**. If Fusion renames those panels, the buttons fall back to the ADD-INS panel.
 
 ## Usage
 
@@ -53,10 +53,12 @@ The command **Lamello P-System CNC Toolpath Addin** is on the **Manufacture → 
 
 Instead of drawing anchor points, define joints once on the **assembled** model; they follow each part through **Modify → Arrange** in the Design workspace.
 
-1. **Design → SOLID → ASSEMBLE → Lamello – Define Joints.** Each panel must be its own component.
-2. Select the two touching faces: the **end face** of the panel that gets the Edge slot and the **face** it sits against (order doesn't matter, the smaller face is the edge; tick **Swap edge / face** if needed).
-3. Choose **Connector type**, **End offset** (default 100 mm, drag the arrow or type) and **Connectors** (count, evenly spaced between the end offsets). The preview shows the Edge cut (orange), Face cavity (blue), joint line (green) and key-hole axis (red); joints already saved show as grey markers.
-4. **Save joint.** Re-selecting the same faces later edits that joint (or tick **Delete this joint**). Right-click → *Repeat* to define the next one.
+1. **Design → SOLID → ASSEMBLE → Lamello – Joints.** Each panel must be its own component. The dialog has three tabs; OK acts on the tab that is showing.
+2. **Find** tab (fastest): select components (in the browser), bodies or faces, or nothing for the whole assembly. Every place a panel end touches another panel's face is listed; untick any you don't want, set connector type / end offset / count once, and **OK** saves them all. Joints that already exist are listed unticked (tick to replace). Face-to-face contacts (an end thicker than 60 mm) and contacts under 40 mm are ignored.
+3. **Define** tab (one joint at a time): select the two touching faces: the **end face** of the panel that gets the Edge slot and the **face** it sits against (order doesn't matter, the smaller face is the edge; tick **Swap edge / face** if needed).
+   Choose **Connector type**, **End offset** (default 100 mm, drag the arrow or type) and **Connectors** (count, evenly spaced between the end offsets). The preview shows the Edge cut (orange), Face cavity (blue), joint line (green) and key-hole axis (red); joints already saved show as grey markers.
+   **OK** saves the joint. Re-selecting the same faces later edits that joint (or tick **Delete this joint**). Right-click → *Repeat* to define the next one.
+4. **Manage** tab: every stored joint (Edge part → Face part, type × count). Select a row to highlight it; tick rows (or **Mark broken** / **Mark all / none**) and **OK** deletes them. *Broken* joints have lost one half (a part was deleted or re-made) and are skipped by Generate.
 5. Arrange as usual. Arrange copies the components, so the stored joints come along.
 6. **Manufacture → MILLING → 3D → Lamello – Generate from Joints.** Pick the setup (containing the Arrange layout; the **Clamex Toolpaths** component is added to its models automatically) and tools, then **Generate**. Each connector becomes `{prefix} – {part} – {partner} {n}` Trace ops (+ optional Drill ops).
 
