@@ -5,9 +5,9 @@ start()/stop() only register toolbar buttons. Heavy dialog and CAM imports load
 lazily (importlib) when a command is first invoked.
 
 Commands:
-- Manual toolpaths (Manufacture ADD-INS): the original Setup / Edge / Face dialog.
-- Generate from Joints (Manufacture ADD-INS): machine joints stored on parts.
-- Define Joints (Design ADD-INS): pick two touching faces to store a joint.
+- Manual toolpaths (Manufacture > Milling > 3D): the original Setup / Edge / Face dialog.
+- Generate from Joints (Manufacture > Milling > 3D): machine joints stored on parts.
+- Define Joints (Design > Solid > Assemble): pick two touching faces to store a joint.
 """
 
 import importlib
@@ -24,8 +24,22 @@ ADDIN_TITLE = 'Lamello P-System'
 JOINTS_GENERATE_CMD_ID = 'LamelloGenerateFromJointsCmd'
 DEFINE_JOINTS_CMD_ID = 'LamelloDefineJointsCmd'
 
-_CAM_PANEL = ('CAMScriptsAddinsPanel', 'CAMEnvironment')
-_DESIGN_PANEL = ('SolidScriptsAddinsPanel', 'FusionSolidEnvironment')
+# Panel spec: (candidate panel ids, workspace id, panel names to match, fallback id).
+# Ids are tried first, then a panel in the workspace whose name matches, then the
+# workspace's ADD-INS panel so the button is never lost.
+_CAM_3D_PANEL = (
+    ('CAM3DPanel', 'CAM3DPanelMilling'),
+    'CAMEnvironment',
+    ('3d',),
+    'CAMScriptsAddinsPanel',
+)
+_DESIGN_ASSEMBLE_PANEL = (
+    ('AssemblePanel', 'AssembleJointsPanel'),
+    'FusionSolidEnvironment',
+    ('assemble',),
+    'SolidScriptsAddinsPanel',
+)
+_CAM_PANEL = _CAM_3D_PANEL
 
 COMMANDS = (
     {
@@ -33,7 +47,7 @@ COMMANDS = (
         'name': CMD_NAME,
         'description': CMD_DESC,
         'module': 'commands.generate_clamex.command',
-        'panel': _CAM_PANEL,
+        'panel': _CAM_3D_PANEL,
     },
     {
         'id': JOINTS_GENERATE_CMD_ID,
@@ -43,7 +57,7 @@ COMMANDS = (
             'the parts in a setup (works on Arrange layouts)'
         ),
         'module': 'commands.joint_generate.command',
-        'panel': _CAM_PANEL,
+        'panel': _CAM_3D_PANEL,
     },
     {
         'id': DEFINE_JOINTS_CMD_ID,
@@ -53,7 +67,7 @@ COMMANDS = (
             'joint follows the parts through Arrange'
         ),
         'module': 'commands.define_joints.command',
-        'panel': _DESIGN_PANEL,
+        'panel': _DESIGN_ASSEMBLE_PANEL,
     },
 )
 
@@ -65,17 +79,29 @@ def _resource_folder():
 
 
 def _find_panel(ui, panel_spec):
-    panel_id, workspace_id = panel_spec
-    panel = ui.allToolbarPanels.itemById(panel_id)
-    if not panel:
-        workspace = ui.workspaces.itemById(workspace_id)
-        if workspace:
-            panel = workspace.toolbarPanels.itemById(panel_id)
+    panel_ids, workspace_id, names, fallback_id = panel_spec
+    for panel_id in panel_ids:
+        panel = ui.allToolbarPanels.itemById(panel_id)
+        if panel:
+            return panel
+    workspace = ui.workspaces.itemById(workspace_id)
+    if workspace:
+        try:
+            panels = workspace.toolbarPanels
+            for index in range(panels.count):
+                panel = panels.item(index)
+                if (panel.name or '').strip().lower() in names:
+                    return panel
+        except Exception:
+            pass
+    panel = ui.allToolbarPanels.itemById(fallback_id)
+    if not panel and workspace:
+        panel = workspace.toolbarPanels.itemById(fallback_id)
     return panel
 
 
 def _find_addins_panel(ui):
-    """Manufacture ADD-INS panel (kept for backwards compatibility)."""
+    """Manufacture panel used by the manual command (kept for backwards compatibility)."""
     return _find_panel(ui, _CAM_PANEL)
 
 
@@ -97,13 +123,19 @@ class CommandCreatedHandler(adsk.core.CommandCreatedEventHandler):
 
 
 def _remove_command(ui, spec):
+    # Remove the button from its current panel and from the ADD-INS panel used by
+    # earlier versions, so a move never leaves a stale duplicate behind.
+    panels = [_find_panel(ui, spec['panel'])]
+    fallback_id = spec['panel'][3]
+    panels.append(ui.allToolbarPanels.itemById(fallback_id))
+    for panel in panels:
+        if not panel:
+            continue
+        control = panel.controls.itemById(spec['id'])
+        if control:
+            control.deleteMe()
     cmd_def = ui.commandDefinitions.itemById(spec['id'])
     if cmd_def:
-        panel = _find_panel(ui, spec['panel'])
-        if panel:
-            control = panel.controls.itemById(spec['id'])
-            if control:
-                control.deleteMe()
         cmd_def.deleteMe()
 
 

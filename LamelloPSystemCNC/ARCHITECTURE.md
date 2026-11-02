@@ -106,7 +106,7 @@ Generation runs for **every milling tab with at least one complete placement set
 
 ## Joint workflow
 
-Three commands are registered in `entry.py` (`COMMANDS`): the manual dialog and **Generate from Joints** on Manufacture → ADD-INS, and **Define Joints** on Design → ADD-INS. All load lazily via `importlib`.
+Three commands are registered in `entry.py` (`COMMANDS`): the manual dialog and **Generate from Joints** on Manufacture → MILLING → 3D, and **Define Joints** on Design → SOLID → ASSEMBLE. `_find_panel` tries known panel ids, then a workspace panel named "3D"/"Assemble", then falls back to that workspace's ADD-INS panel. All load lazily via `importlib`.
 
 **Storage.** A joint = two touching planar faces on the assembled model. Each half is a JSON attribute on its own component (`group LamelloPSystemCNC`, name `joint:<id>`), in component-local mm:
 
