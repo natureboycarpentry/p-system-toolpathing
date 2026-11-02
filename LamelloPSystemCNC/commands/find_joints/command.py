@@ -34,6 +34,7 @@ INPUT_TYPE = 'fjConnectorType'
 INPUT_END_OFFSET = 'fjEndOffset'
 INPUT_COUNT = 'fjCount'
 INPUT_TABLE = 'fjTable'
+INPUT_TICK_ALL = 'fjTickAll'
 INPUT_INFO = 'fjInfo'
 ROW_PREFIX = 'fjRow_'
 
@@ -298,6 +299,10 @@ def build(inputs, state):
 
     table = inputs.addTableCommandInput(INPUT_TABLE, 'Joints found', 3, '1:7:4')
     table.maximumVisibleRows = 14
+    tick_all = table.commandInputs.addBoolValueInput(INPUT_TICK_ALL, 'Tick all', False, '', False)
+    tick_all.text = 'Tick all / none'
+    tick_all.tooltip = 'Tick every joint found, or clear every tick if all are ticked.'
+    table.addToolbarCommandInput(tick_all)
 
     inputs.addTextBoxCommandInput(INPUT_INFO, '', '', 5, True)
 
@@ -326,6 +331,12 @@ def input_changed(inputs, changed, state):
     if changed.id == INPUT_PARTS:
         _rescan(inputs, state)
         return
+    if changed.id == INPUT_TICK_ALL:
+        tick = len(_ticked(inputs, state)) < len(state.drafts)
+        for index in range(len(state.drafts)):
+            _row_checkbox(inputs, state, index).value = tick
+        _update_info(inputs, state)
+        return
     row = _row_index(inputs, changed, state)
     if 0 <= row < len(state.drafts):
         state.highlight = row
@@ -347,8 +358,8 @@ def preview(inputs, state, design):
         joint_preview.highlight_parts(
             design,
             (
-                (selected.edge_face, joint_preview.COLOR_EDGE_CUT),
-                (selected.mate_face, joint_preview.COLOR_FACE_CUT),
+                (selected.edge_occurrence, joint_preview.COLOR_EDGE_CUT),
+                (selected.face_occurrence, joint_preview.COLOR_FACE_CUT),
             ),
         )
         if selected not in drafts:

@@ -64,7 +64,16 @@ def _update_info(inputs, state):
             f'<b>{broken}</b> broken: one half is missing (its part was deleted or re-made). '
             'Broken joints are skipped by Generate.'
         )
-    lines.append('Click a joint\'s name to highlight it. Tick rows to delete them (shown red).')
+    selected = next((j for j in state.joints if j['id'] == state.highlight_id), None)
+    if selected:
+        edge = selected['edge'][0].name if selected['edge'] else 'missing'
+        face = selected['face'][0].name if selected['face'] else 'missing'
+        lines.append(
+            f'Selected: <b>{edge}</b> (Edge slot, orange) → <b>{face}</b> (Face cavity, blue).'
+        )
+    else:
+        lines.append('Click a joint\'s name to highlight its two parts.')
+    lines.append('Tick rows to delete them (shown red).')
     if marked:
         lines.append(f'<b>{marked}</b> marked for deletion.')
     info.formattedText = '<br>'.join(lines)

@@ -60,7 +60,7 @@ Instead of drawing anchor points, define joints once on the **assembled** model;
    **OK** saves the joint. Re-selecting the same faces later edits that joint (or tick **Delete this joint**). Right-click → *Repeat* to define the next one.
 4. **Manage** tab: every stored joint (Edge part → Face part, type × count). Select a row to highlight it; tick rows (or **Mark broken** / **Mark all / none**) and **OK** deletes them. *Broken* joints have lost one half (a part was deleted or re-made) and are skipped by Generate.
 5. Arrange as usual. Arrange copies the components, so the stored joints come along.
-6. **Manufacture → MILLING → 3D → Lamello – Generate from Joints.** Pick the setup (containing the Arrange layout; the **Clamex Toolpaths** component is added to its models automatically) and tools, then **Generate**. Each connector becomes `{prefix} – {part} – {partner} {n}` Trace ops (+ optional Drill ops).
+6. **Manufacture → MILLING → 3D → Lamello – Generate from Joints.** Pick the setup (containing the Arrange layout; the **Clamex Toolpaths** component is added to its models automatically) and tools, choose **Generate: Edges and faces / Edges only / Faces only** (e.g. when the two halves go in different setups; key holes belong to the Edge half), then **Generate**. Each connector becomes `{prefix} – {part} – {partner} {n}` Trace ops (+ optional Drill ops).
 
 Checks: an Edge part must lie flat; a Face cavity must face the setup's +Z. Parts Arrange laid face-down are skipped and listed, so flip them in the arrangement or machine them in a second setup. Key holes are drilled from the top face, so check that's the face you want them on.
 

@@ -142,29 +142,35 @@ def draw_existing(design, skip_joint_id=None, skip_joint_ids=()):
 
 
 def highlight_parts(design, parts):
-    """Tinted overlay of whole part bodies. *parts*: iterable of (face, rgb).
+    """Tinted overlay of whole parts. *parts*: iterable of (occurrence, rgb).
 
-    The face's body is drawn in component space and placed with the face's
-    occurrence transform, so assembled parts light up where they sit.
+    Each body of the occurrence is drawn in component space and placed with
+    the occurrence's world transform, so assembled parts light up where they sit.
     """
     group = _new_group(design)
-    for face, rgb in parts:
-        try:
-            body = face.body
-            native = body.nativeObject or body
-            graphics = group.addBRepBody(native)
-            occurrence = face.assemblyContext
-            if occurrence:
-                graphics.transform = occurrence.transform2
-            graphics.color = adsk.fusion.CustomGraphicsSolidColorEffect.create(
+    color_cache = {}
+    for occurrence, rgb in parts:
+        if not occurrence:
+            continue
+        if rgb not in color_cache:
+            color_cache[rgb] = adsk.fusion.CustomGraphicsSolidColorEffect.create(
                 adsk.core.Color.create(rgb[0], rgb[1], rgb[2], PART_HIGHLIGHT_ALPHA)
             )
+        bodies = occurrence.bRepBodies
+        for index in range(bodies.count):
             try:
-                graphics.depthPriority = 1
+                body = bodies.item(index)
+                if not body.isVisible:
+                    continue
+                graphics = group.addBRepBody(body.nativeObject or body)
+                graphics.transform = occurrence.transform2
+                graphics.color = color_cache[rgb]
+                try:
+                    graphics.depthPriority = 1
+                except Exception:
+                    pass
             except Exception:
-                pass
-        except Exception:
-            continue
+                continue
     _refresh()
 
 
@@ -181,9 +187,21 @@ def _display_occurrences(design):
 
 
 def draw_managed(design, joints, highlight_id=None, marked_ids=(), edge_cutter_diameter_mm=None):
-    """Every joint for Manage Joints: grey, the highlighted one in colour, marked ones red."""
+    """Every joint for Manage: grey, the highlighted one in colour with its two parts
+    tinted (Edge part orange, Face part blue), marked ones red."""
     diameter = edge_cutter_diameter_mm or jm.NOMINAL_EDGE_CUTTER_DIAMETER_MM
     occurrences = _display_occurrences(design)
+    for joint in joints:
+        if joint['id'] == highlight_id:
+            highlight_parts(
+                design,
+                [
+                    (occurrences.get(joint[role][0].entityToken), rgb)
+                    for role, rgb in ((jt.ROLE_EDGE, COLOR_EDGE_CUT), (jt.ROLE_FACE, COLOR_FACE_CUT))
+                    if joint[role]
+                ],
+            )
+            break
     group = _new_group(design)
     for joint in joints:
         marked = joint['id'] in marked_ids

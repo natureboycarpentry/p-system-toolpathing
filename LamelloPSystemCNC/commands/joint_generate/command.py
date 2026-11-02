@@ -84,6 +84,23 @@ INPUT_FACE_FLIP_Z = 'jgFaceFlipZ'
 INPUT_DRILL = 'jgDrill'
 INPUT_CLEARANCE = 'jgClearance'
 INPUT_SUMMARY = 'jgSummary'
+INPUT_SCOPE = 'jgScope'
+
+# Generate dropdown label -> connector halves it machines.
+SCOPE_BOTH = 'Edges and faces'
+SCOPE_EDGES = 'Edges only'
+SCOPE_FACES = 'Faces only'
+SCOPE_ROLES = {
+    SCOPE_BOTH: frozenset((jt.ROLE_EDGE, jt.ROLE_FACE)),
+    SCOPE_EDGES: frozenset((jt.ROLE_EDGE,)),
+    SCOPE_FACES: frozenset((jt.ROLE_FACE,)),
+}
+SETTING_SCOPE = 'joints_generate_scope'
+
+# Inputs that only matter for one half; hidden when that half is not generated.
+EDGE_ONLY_INPUTS = (INPUT_EDGE_TOOL, INPUT_CUTTER_Z, INPUT_EDGE_FLIP_Z, INPUT_DRILL,
+                    INPUT_DRILL_TOOL, INPUT_CLEARANCE)
+FACE_ONLY_INPUTS = (INPUT_FACE_TOOL, INPUT_FACE_FLIP_Z)
 
 
 def _addin_dir():
@@ -198,8 +215,13 @@ def diagnose_no_joints(design, setup):
     return lines
 
 
-def plan_connectors(design, setup):
-    """Return (jobs, problems, notes). Each job is one connector half to machine."""
+def plan_connectors(design, setup, roles=SCOPE_ROLES[SCOPE_BOTH]):
+    """Return (jobs, problems, notes). Each job is one connector half to machine.
+
+    Only halves whose role is in *roles* are planned. Names are numbered before
+    filtering so an Edges-only or Faces-only run names operations exactly as a
+    full run would (re-running replaces operations by name).
+    """
     z_axis = setup_wcs_z_axis(setup)
     z = (z_axis.x, z_axis.y, z_axis.z)
     occurrences, include_all, paths = _jointed_occurrences(design, setup)
@@ -227,6 +249,8 @@ def plan_connectors(design, setup):
             name = f'{record_labels[joint_id]} {connector["index"] + 1}'
 
             role = connector['role']
+            if role not in roles:
+                continue
             orientation = jm.orientation_against(connector['axis'], z)
             problem = None
             if role == jt.ROLE_EDGE and orientation == jm.ORIENT_TILTED:
@@ -454,6 +478,8 @@ def _read_options(inputs):
         'face_flip_z': flag(INPUT_FACE_FLIP_Z),
         'drill': flag(INPUT_DRILL),
         'clearance_mm': clearance,
+        'roles': SCOPE_ROLES.get(dd(INPUT_SCOPE), SCOPE_ROLES[SCOPE_BOTH]),
+        'scope': dd(INPUT_SCOPE) or SCOPE_BOTH,
     }
 
 
@@ -483,7 +509,7 @@ def _refresh_plan(inputs, state):
             summary.formattedText = 'Select a setup.'
         return
     try:
-        state.jobs, state.problems, state.notes = plan_connectors(design, setup)
+        state.jobs, state.problems, state.notes = plan_connectors(design, setup, options['roles'])
     except Exception:
         adsk.core.Application.get().log(f'{TITLE} plan: {traceback.format_exc()}')
         if summary:
@@ -494,7 +520,12 @@ def _refresh_plan(inputs, state):
         return
     edges = sum(1 for job in state.jobs if job['role'] == jt.ROLE_EDGE)
     faces = sum(1 for job in state.jobs if job['role'] == jt.ROLE_FACE)
-    lines = [f'Ready: <b>{edges}</b> Edge slot(s), <b>{faces}</b> Face cavit(ies).']
+    if options['roles'] == SCOPE_ROLES[SCOPE_EDGES]:
+        lines = [f'Ready: <b>{edges}</b> Edge slot(s) (Face cavities not generated).']
+    elif options['roles'] == SCOPE_ROLES[SCOPE_FACES]:
+        lines = [f'Ready: <b>{faces}</b> Face cavit(ies) (Edge slots not generated).']
+    else:
+        lines = [f'Ready: <b>{edges}</b> Edge slot(s), <b>{faces}</b> Face cavit(ies).']
     if not state.jobs and not state.problems:
         try:
             lines.extend(diagnose_no_joints(design, setup))
@@ -514,11 +545,18 @@ def _refresh_plan(inputs, state):
     summary.formattedText = '<br>'.join(lines)
 
 
-def _update_drill_visibility(inputs):
+def _update_visibility(inputs):
+    """Show only the inputs the Generate choice uses; clearance only when drilling."""
+    roles = _read_options(inputs)['roles']
+    for ids, role in ((EDGE_ONLY_INPUTS, jt.ROLE_EDGE), (FACE_ONLY_INPUTS, jt.ROLE_FACE)):
+        for input_id in ids:
+            item = inputs.itemById(input_id)
+            if item:
+                item.isVisible = role in roles
     drill = adsk.core.BoolValueCommandInput.cast(inputs.itemById(INPUT_DRILL))
     clearance = inputs.itemById(INPUT_CLEARANCE)
     if clearance:
-        clearance.isVisible = bool(drill and drill.value)
+        clearance.isVisible = jt.ROLE_EDGE in roles and bool(drill and drill.value)
 
 
 def handle_command_created(args, handlers):
@@ -546,6 +584,10 @@ def handle_command_created(args, handlers):
         _dropdown(inputs, INPUT_SETUP, 'Setup', [s.name for s in setups], saved.get('setup_name'),
                   'Milling setup whose WCS +Z is the machining direction. Joints are read '
                   'from the parts in this setup (the arranged copies when present).')
+        _dropdown(inputs, INPUT_SCOPE, 'Generate', list(SCOPE_ROLES),
+                  saved.get(SETTING_SCOPE, SCOPE_BOTH),
+                  'Machine both halves of every joint, or only the Edge slots (+ key holes) '
+                  'or only the Face cavities, e.g. when the two halves go in different setups.')
         _dropdown(inputs, INPUT_EDGE_TOOL, 'Edge tool', tool_names,
                   _pick_default(saved.get('side_tool_description'), SAMPLE_SIDE_DESCRIPTION, tool_names),
                   'Side cutter for Edge T-slots.')
@@ -577,7 +619,7 @@ def handle_command_created(args, handlers):
         clearance.tooltip = 'Drill retract/clearance height above the anchor plane, in millimetres.'
 
         inputs.addTextBoxCommandInput(INPUT_SUMMARY, '', '', 10, True)
-        _update_drill_visibility(inputs)
+        _update_visibility(inputs)
 
         state = _State()
         for event, handler in (
@@ -615,9 +657,9 @@ class _InputChangedHandler(adsk.core.InputChangedEventHandler):
     def notify(self, args):
         try:
             event_args = adsk.core.InputChangedEventArgs.cast(args)
-            if event_args.input.id == INPUT_DRILL:
-                _update_drill_visibility(event_args.inputs)
-            if event_args.input.id == INPUT_SETUP:
+            if event_args.input.id in (INPUT_DRILL, INPUT_SCOPE):
+                _update_visibility(event_args.inputs)
+            if event_args.input.id in (INPUT_SETUP, INPUT_SCOPE):
                 _refresh_plan(event_args.inputs, self._state)
         except Exception:
             adsk.core.Application.get().log(f'{TITLE} inputChanged: {traceback.format_exc()}')
@@ -638,7 +680,7 @@ class _ValidateHandler(adsk.core.ValidateInputsEventHandler):
                 ok = False
             if any(job['role'] == jt.ROLE_FACE for job in jobs) and not options['face_tool']:
                 ok = False
-            if options['drill'] and not options['drill_tool']:
+            if jt.ROLE_EDGE in options['roles'] and options['drill'] and not options['drill_tool']:
                 ok = False
             event_args.areInputsValid = ok
         except Exception:
@@ -665,7 +707,7 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
             if not setup:
                 raise RuntimeError(f'Setup "{options["setup_name"]}" was not found.')
             trace_log.start(f'{TITLE} execute: setup {setup.name}')
-            jobs, problems, _notes = plan_connectors(design, setup)
+            jobs, problems, _notes = plan_connectors(design, setup, options['roles'])
             trace_log.step(f'planned {len(jobs)} job(s); creating sketches')
             pending = generate(cam, design, setup, options, jobs)
             trace_log.step(f'sketches done; queueing {len(pending)} operation(s)')
@@ -685,6 +727,7 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
                     'tool_description': options['face_tool'],
                     'flip_z': options['face_flip_z'],
                 },
+                global_settings={SETTING_SCOPE: options['scope']},
             )
 
             _pending_run = {
